@@ -233,7 +233,7 @@ function ActionRecordPageInner() {
   const [filterChannel, setFilterChannel] = useState('');
   const [jobGroupFilter, setJobGroupFilterAR] = useState<string>('전체');
   const [activeJobTypes, setActiveJobTypesAR] = useState<Set<JobTypeAR>>(new Set(JOB_TYPES_AR));
-  const handleJobGroupClickAR = (g: '전체'|'일용직'|'계약직') => {
+  const handleJobGroupClickAR = (g: string) => {
     setJobGroupFilterAR(g);
     if (g==='전체') setActiveJobTypesAR(new Set(JOB_TYPES_AR));
     else if (g==='일용직') setActiveJobTypesAR(new Set(['Helper']));
