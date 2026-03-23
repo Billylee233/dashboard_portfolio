@@ -28,7 +28,6 @@ const JOB_GROUP: Record<string, JobType[]> = {
   '그룹B': ['직무2','직무3','직무4','직무5','직무6'],
 };
 
-const IS_PORTFOLIO_CLIENT = process.env.NEXT_PUBLIC_PORTFOLIO_MODE === 'true';
 const CHANNELS = IS_PORTFOLIO_CLIENT ? [
   '채널45','채널52','채널88','채널90','채널69',
   '채널83','채널27','채널90','채널67',
