@@ -8,7 +8,12 @@ import { useTheme } from '@/components/ui/ThemeEditor';
 import type { MetricsRow } from '@/lib/types';
 import EmptyState from '@/components/ui/EmptyState';
 
-const CHANNELS = [
+const IS_PORTFOLIO_CLIENT = process.env.NEXT_PUBLIC_PORTFOLIO_MODE === 'true';
+const CHANNELS = IS_PORTFOLIO_CLIENT ? [
+  '채널45','채널52','채널88','채널90','채널69',
+  '채널83','채널27','채널90','채널67',
+  '채널42','채널60','채널80','채널83',
+] : [
   'Brand_Search_Naver','SA_Carrot','SA_Daum','SA_Google','SA_Naver',
   'Kakao_Tokchannel','Carrot Market','Criteo','Demandgen',
   'Google_pmax','Instagram','Tiktok','toss',
@@ -89,10 +94,10 @@ function InsightTable({ items, loading, insightType }: { items: InsightItem[]; l
               <td><RankBadge rank={item.rank} /></td>
               {showImage && (
                 <td className="max-w-[200px]">
-                  {item.image_content ? (
+                  {item.image_code ? (
                     <div>
                       <div style={{ fontSize: 'var(--font-small)', color: 'var(--color-text-muted)', marginBottom: 2 }}>{item.image_code}</div>
-                      <p style={{ fontSize: 'var(--font-body)', color: 'var(--color-text-secondary)' }} className="line-clamp-2 leading-relaxed">{item.image_content}</p>
+                      {item.image_content && <p style={{ fontSize: 'var(--font-body)', color: 'var(--color-text-secondary)' }} className="line-clamp-2 leading-relaxed">{item.image_content}</p>}
                     </div>
                   ) : (
                     <span style={{ fontSize: 'var(--font-body)', color: 'var(--color-text-muted)' }}>—</span>
@@ -101,10 +106,10 @@ function InsightTable({ items, loading, insightType }: { items: InsightItem[]; l
               )}
               {showText && (
                 <td className="max-w-[200px]">
-                  {item.text_content ? (
+                  {item.text_code ? (
                     <div>
                       <div style={{ fontSize: 'var(--font-small)', color: 'var(--color-text-muted)', marginBottom: 2 }}>{item.text_code}</div>
-                      <p style={{ fontSize: 'var(--font-body)', color: 'var(--color-text-secondary)' }} className="line-clamp-2 leading-relaxed">{item.text_content}</p>
+                      {item.text_content && <p style={{ fontSize: 'var(--font-body)', color: 'var(--color-text-secondary)' }} className="line-clamp-2 leading-relaxed">{item.text_content}</p>}
                     </div>
                   ) : (
                     <span style={{ fontSize: 'var(--font-body)', color: 'var(--color-text-muted)' }}>—</span>

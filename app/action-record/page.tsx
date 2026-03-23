@@ -9,7 +9,7 @@ import { thStyle, tdStyle } from '@/lib/tableStyles';
 
 const IS_PORTFOLIO_CLIENT = process.env.NEXT_PUBLIC_PORTFOLIO_MODE === 'true';
 const JOB_TYPES_AR = IS_PORTFOLIO_CLIENT
-  ? ['직무A','직무B','직무C','직무D','직무E','직무F','직무G'] as const
+  ? ['직무1','직무2','직무3','직무4','직무5','직무6'] as const
   : ['Helper','HL','MCL','FA','FO','CPF','S-FA'] as const;
 function hexToRgbAR(hex: string) {
   const h = (hex || '').replace('#', '');
@@ -21,6 +21,8 @@ const JOB_GROUP_AR: Record<string, JobTypeAR[]> = {
   '전체': JOB_TYPES_AR as unknown as JobTypeAR[],
   '일용직': ['Helper'],
   '계약직': ['HL','MCL','FA','FO','CPF','S-FA'],
+  '그룹A': ['직무1'],
+  '그룹B': ['직무2','직무3','직무4','직무5','직무6'],
 };
 
 const CHANNELS = [
@@ -229,7 +231,7 @@ function ActionRecordPageInner() {
 
   const [filterDate, setFilterDate] = useState('');
   const [filterChannel, setFilterChannel] = useState('');
-  const [jobGroupFilter, setJobGroupFilterAR] = useState<'전체'|'일용직'|'계약직'>('전체');
+  const [jobGroupFilter, setJobGroupFilterAR] = useState<string>('전체');
   const [activeJobTypes, setActiveJobTypesAR] = useState<Set<JobTypeAR>>(new Set(JOB_TYPES_AR));
   const handleJobGroupClickAR = (g: '전체'|'일용직'|'계약직') => {
     setJobGroupFilterAR(g);
@@ -436,7 +438,7 @@ function ActionRecordPageInner() {
           {/* 구분선 */}
           <span style={{width:2,height:18,backgroundColor:'var(--color-border-subtle)',borderRadius:1,opacity:0.8,marginLeft:4}}/>
           {/* 직무 그룹 */}
-          {(['전체','일용직','계약직'] as const).map(g => {
+          {(IS_PORTFOLIO_CLIENT ? ['전체','그룹A','그룹B'] : ['전체','일용직','계약직']).map(g => {
             const active = jobGroupFilter === g;
             return (
               <button key={g} onClick={()=>handleJobGroupClickAR(g)}

@@ -170,6 +170,7 @@ export async function POST(req: NextRequest) {
         query: `INSERT INTO ${AB_TABLE()} (test_id, test_name, description, test_date_start, test_date_end, test_rows, ai_comment, job_type, created_at, updated_at)
                 VALUES (@test_id, @test_name, @description, @test_date_start, @test_date_end, PARSE_JSON(@test_rows), @ai_comment, @job_type, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP())`,
         params: { test_id, test_name, description: description ?? '', test_date_start: test_date_start ?? null, test_date_end: test_date_end ?? null, test_rows: JSON.stringify(rowsWithMetrics), ai_comment, job_type: job_type ?? null },
+        types: { test_date_start: 'DATE', test_date_end: 'DATE', ai_comment: 'STRING', job_type: 'STRING' },
         useLegacySql: false,
       });
     } else {
