@@ -3,7 +3,7 @@ import { DashboardProvider } from '@/components/layout/DashboardLayout';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'CLS Marketing Dashboard',
+  title: 'Demo Dashboard',
   description: 'Performance marketing analytics dashboard',
 };
 

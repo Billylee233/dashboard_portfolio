@@ -45,14 +45,25 @@ function MethodologySection({ title, children }: { title: string; children: Reac
   );
 }
 
-const CHANNELS = [
+const IS_PORTFOLIO_CLIENT = process.env.NEXT_PUBLIC_PORTFOLIO_MODE === 'true';
+
+const CHANNELS = IS_PORTFOLIO_CLIENT ? [
+  '채널45','채널52','채널88','채널90','채널69',
+  '채널83','채널27','채널90','채널67',
+  '채널42','채널60','채널80','채널83',
+] : [
   'Brand_Search_Naver','SA_Carrot','SA_Daum','SA_Google','SA_Naver',
   'Kakao_Tokchannel','Carrot Market','Criteo','Demandgen',
   'Google_pmax','Instagram','Tiktok','toss',
 ];
 
 // 채널별 색상
-const CHANNEL_COLORS: Record<string, string> = {
+const CHANNEL_COLORS: Record<string, string> = IS_PORTFOLIO_CLIENT ? {
+  '채널45': '#38bdf8', '채널52': '#f97316', '채널88': '#a78bfa',
+  '채널90': '#34d399', '채널69': '#4ade80', '채널83': '#facc15',
+  '채널27': '#fb923c', '채널67': '#67e8f9',
+  '채널42': '#f472b6', '채널60': '#c084fc', '채널80': '#94a3b8',
+} : {
   Brand_Search_Naver: '#38bdf8', SA_Carrot:    '#f97316', SA_Daum:    '#a78bfa',
   SA_Google:          '#34d399', SA_Naver:     '#4ade80', Kakao_Tokchannel: '#facc15',
   'Carrot Market':    '#fb923c', Criteo:       '#e879f9', Demandgen:  '#67e8f9',

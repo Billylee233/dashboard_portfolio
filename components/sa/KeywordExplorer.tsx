@@ -97,7 +97,10 @@ function classifyKw(metrics: any, rules: ActionRule[], avgCpa: number, avgCvr: n
 }
 
 // ─── 기본 포함어 목록 ─────────────────────────────────────────────────────────
-const DEFAULT_INCLUDES = ['알바', '쿠팡', '상하차', '단기', '일급', '당일', '택배'];
+const IS_PORTFOLIO_CLIENT = process.env.NEXT_PUBLIC_PORTFOLIO_MODE === 'true';
+const DEFAULT_INCLUDES = IS_PORTFOLIO_CLIENT
+  ? ['키워드1', '키워드2', '키워드3', '키워드4', '키워드5', '키워드6', '키워드7']
+  : ['알바', '쿠팡', '상하차', '단기', '일급', '당일', '택배'];
 
 // ─── 타입 ─────────────────────────────────────────────────────────────────────
 interface KwRow extends SAKeywordMetrics {

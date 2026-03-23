@@ -278,10 +278,10 @@ function DashboardHeader() {
           {/* Logo */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 24, flexShrink: 0 }}>
             <span style={{ fontWeight: 900, color: 'var(--color-accent)', fontSize: 'var(--font-kpi-label)', letterSpacing: 'var(--tracking-tight)' }}>
-              CLS
+              Demo
             </span>
             <span className="hidden sm:block" style={{ color: 'var(--color-text-tertiary)', fontWeight: 500, fontSize: 'var(--font-small)' }}>
-              Marketing Dashboard
+              Dashboard
             </span>
           </div>
 

@@ -7,7 +7,10 @@ import { isLightColor } from '@/lib/theme';
 import { useSearchParams } from 'next/navigation';
 import { thStyle, tdStyle } from '@/lib/tableStyles';
 
-const JOB_TYPES_AR = ['Helper','HL','MCL','FA','FO','CPF','S-FA'] as const;
+const IS_PORTFOLIO_CLIENT = process.env.NEXT_PUBLIC_PORTFOLIO_MODE === 'true';
+const JOB_TYPES_AR = IS_PORTFOLIO_CLIENT
+  ? ['직무A','직무B','직무C','직무D','직무E','직무F','직무G'] as const
+  : ['Helper','HL','MCL','FA','FO','CPF','S-FA'] as const;
 function hexToRgbAR(hex: string) {
   const h = (hex || '').replace('#', '');
   if (h.length < 6) return [14, 165, 233];

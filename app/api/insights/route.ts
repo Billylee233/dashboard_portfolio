@@ -93,8 +93,8 @@ export async function GET(req: NextRequest) {
       rank: idx + 1,
       image_code:    IS_PORTFOLIO ? maskAd(r.image_code)   : (r.image_code    ?? null),
       text_code:     IS_PORTFOLIO ? maskAd(r.text_code)    : (r.text_code     ?? null),
-      image_content: r.image_content ?? null,
-      text_content:  r.text_content  ?? null,
+      image_content: IS_PORTFOLIO ? null : (r.image_content ?? null),
+      text_content:  IS_PORTFOLIO ? null : (r.text_content  ?? null),
       score: Math.round(r.score * 1000) / 1000,
       metrics: IS_PORTFOLIO ? transformMetrics(r.metrics) : r.metrics,
     }));
