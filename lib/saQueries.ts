@@ -2,7 +2,7 @@ import { getBQClient } from './bigquery';
 
 const SA_PROJECT = 'n8n-credential-483211';
 const SA_DATASET = 'all_position_sa';
-const SA_VIEW    = `\`${SA_PROJECT}.${SA_DATASET}.sa_all_merged\``;
+const SA_TABLE   = `\`${SA_PROJECT}.${SA_DATASET}.sa_merged_table\``;  // ← 변경
 
 async function saQuery<T = any>(sql: string, params?: Record<string, any>): Promise<T[]> {
   const bq = getBQClient();
@@ -97,7 +97,7 @@ function buildWhere(range: SADateRange, filter: SAFilter, params: Record<string,
         SELECT keyword FROM (
           SELECT keyword,
             ROW_NUMBER() OVER (ORDER BY SUM(IFNULL(applicant,0)) DESC) AS rn
-          FROM ${SA_VIEW}
+          FROM ${SA_TABLE}
           WHERE ${subClauses.join(' AND ')}
           GROUP BY keyword
         )
@@ -114,7 +114,7 @@ export async function querySAPeriodSummary(range: SADateRange, filter: SAFilter)
   const where = buildWhere(range, filter, params);
   const sql = `
     SELECT ${SA_METRICS_SQL}
-    FROM ${SA_VIEW}
+    FROM ${SA_TABLE}
     WHERE ${where}
   `;
   return saQuery(sql, params);
@@ -128,7 +128,7 @@ export async function querySADailyMetrics(range: SADateRange, filter: SAFilter) 
     SELECT
       CAST(\`date\` AS STRING) AS date,
       ${SA_METRICS_SQL}
-    FROM ${SA_VIEW}
+    FROM ${SA_TABLE}
     WHERE ${where}
     GROUP BY \`date\`
     ORDER BY \`date\`
@@ -146,7 +146,7 @@ export async function querySAWeeklyMetrics(range: SADateRange, filter: SAFilter)
       MIN(CAST(\`date\` AS STRING)) AS week_start,
       MAX(CAST(\`date\` AS STRING)) AS week_end,
       ${SA_METRICS_SQL}
-    FROM ${SA_VIEW}
+    FROM ${SA_TABLE}
     WHERE ${where}
     GROUP BY \`week\`
     ORDER BY \`week\`
@@ -162,7 +162,7 @@ export async function querySAMonthlyMetrics(range: SADateRange, filter: SAFilter
     SELECT
       CAST(\`month\` AS STRING) AS month,
       ${SA_METRICS_SQL}
-    FROM ${SA_VIEW}
+    FROM ${SA_TABLE}
     WHERE ${where}
     GROUP BY \`month\`
     ORDER BY \`month\`
@@ -178,7 +178,7 @@ export async function querySAKeywordMetrics(range: SADateRange, filter: SAFilter
     SELECT
       keyword,
       ${SA_METRICS_SQL}
-    FROM ${SA_VIEW}
+    FROM ${SA_TABLE}
     WHERE ${where}
       AND keyword IS NOT NULL
       AND keyword != ''
@@ -194,7 +194,7 @@ export async function querySAKeywordMetrics(range: SADateRange, filter: SAFilter
 export async function querySADistinctMedia(): Promise<string[]> {
   const sql = `
     SELECT DISTINCT media
-    FROM ${SA_VIEW}
+    FROM ${SA_TABLE}
     WHERE media IS NOT NULL AND media != ''
     ORDER BY media
   `;
@@ -213,7 +213,7 @@ export async function querySADistinctCampaigns(media?: string[]): Promise<string
   }
   const sql = `
     SELECT DISTINCT campaign
-    FROM ${SA_VIEW}
+    FROM ${SA_TABLE}
     WHERE campaign IS NOT NULL AND campaign != ''
     ${mediaClause}
     ORDER BY campaign
@@ -233,7 +233,7 @@ export async function querySADistinctGroups(campaign?: string[]): Promise<string
   }
   const sql = `
     SELECT DISTINCT \`group\`
-    FROM ${SA_VIEW}
+    FROM ${SA_TABLE}
     WHERE \`group\` IS NOT NULL AND \`group\` != ''
     ${campaignClause}
     ORDER BY \`group\`
@@ -247,7 +247,7 @@ export async function querySAKeywordSuggestions(q: string, limit = 20): Promise<
   const params: Record<string, any> = { saQ: `%${q}%` };
   const sql = `
     SELECT DISTINCT keyword
-    FROM ${SA_VIEW}
+    FROM ${SA_TABLE}
     WHERE keyword LIKE @saQ
       AND keyword IS NOT NULL AND keyword != ''
     ORDER BY keyword
@@ -289,7 +289,7 @@ export async function querySAKeywordComparison(
       SELECT
         keyword,
         ${SA_METRICS_SQL}
-      FROM ${SA_VIEW}
+      FROM ${SA_TABLE}
       WHERE ${selWhere}
         AND keyword IS NOT NULL AND keyword != ''
       GROUP BY keyword
@@ -298,7 +298,7 @@ export async function querySAKeywordComparison(
       SELECT
         keyword,
         ${SA_METRICS_SQL}
-      FROM ${SA_VIEW}
+      FROM ${SA_TABLE}
       WHERE ${cmpWhereFixed}
         AND keyword IS NOT NULL AND keyword != ''
       GROUP BY keyword
@@ -342,7 +342,7 @@ export async function querySAKeywordCampaignGroup(
           PARTITION BY keyword
           ORDER BY SUM(IFNULL(applicant, 0)) DESC
         ) AS rn
-      FROM ${SA_VIEW}
+      FROM ${SA_TABLE}
       WHERE ${where}
         AND keyword IS NOT NULL AND keyword != ''
       GROUP BY keyword, campaign, \`group\`
