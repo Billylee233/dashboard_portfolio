@@ -8,19 +8,6 @@ const DATASET = process.env.NEXT_PUBLIC_BQ_DATASET!;
 
 const SA_PROJECT = 'n8n-credential-483211';
 const SA_DATASET = 'all_position_sa';
-const SA_TABLE = 'sa_merged_table';
-const SA_ARCHIVE = 'sa_archive';  // 아카이브 테이블 (2508~2602 고정 데이터)
-
-// ─── media 정규화 맵 ───────────────────────────────────────────────────────────
-const MEDIA_NORMALIZE = `
-  CASE UPPER(media)
-    WHEN 'SA_NAVER'  THEN 'SA_Naver'
-    WHEN 'SA_GOOGLE' THEN 'SA_Google'
-    WHEN 'SA_DAUM'   THEN 'SA_Daum'
-    WHEN 'SA_CARROT' THEN 'SA_Carrot'
-    ELSE media
-  END AS media
-`;
 
 // ─── 1. Helper_Merge_24 동기화 ─────────────────────────────────────────────────
 async function syncMarketingData() {
@@ -54,68 +41,29 @@ async function syncMarketingData() {
   await job.getQueryResults();
 }
 
-// ─── 2. SA 동기화 (증분 업데이트 방식) ─────────────────────────────────────────
-// live_SA(Sheets)만 읽고, sa_archive(네이티브 TABLE)와 병합
-// → Sheets API 호출 1회로 과부하 방지
+// ─── 2. SA 동기화 (단순 UNION ALL) ─────────────────────────────────────────────
+// live_SA + sa_archive → sa_merged_table
 async function syncSAData() {
   const bq = getBQClient();
 
   const sql = `
-    CREATE OR REPLACE TABLE \`${SA_PROJECT}.${SA_DATASET}.${SA_TABLE}\` AS
-    SELECT * EXCEPT(rn, _src_priority)
-    FROM (
-      SELECT *,
-        ROW_NUMBER() OVER (
-          PARTITION BY \`merge\`
-          ORDER BY _src_priority ASC
-        ) AS rn
-      FROM (
-        -- live_SA: 최신 데이터 (Sheets에서 읽기, 우선순위 1)
-        SELECT
-          campaign_kr,
-          \`group\`,
-          keyword,
-          imp,
-          click,
-          cost,
-          date,
-          campaign,
-          ${MEDIA_NORMALIZE},
-          job_position,
-          device,
-          campaign_type,
-          \`merge\`,
-          month,
-          week,
-          applicant,
-          1 AS _src_priority
-        FROM \`${SA_PROJECT}.${SA_DATASET}.live_SA\`
+    CREATE OR REPLACE TABLE \`${SA_PROJECT}.${SA_DATASET}.sa_merged_table\` AS
 
-        UNION ALL
+    SELECT
+      campaign_kr, \`group\`, keyword, imp, click, cost, date, campaign,
+      CASE UPPER(media)
+        WHEN 'SA_NAVER'  THEN 'SA_Naver'
+        WHEN 'SA_GOOGLE' THEN 'SA_Google'
+        WHEN 'SA_DAUM'   THEN 'SA_Daum'
+        WHEN 'SA_CARROT' THEN 'SA_Carrot'
+        ELSE media
+      END AS media,
+      job_position, device, campaign_type, \`merge\`, month, week, applicant
+    FROM \`${SA_PROJECT}.${SA_DATASET}.live_SA\`
 
-        -- sa_archive: 아카이브 데이터 (네이티브 TABLE, 우선순위 2)
-        SELECT
-          campaign_kr,
-          \`group\`,
-          keyword,
-          imp,
-          click,
-          cost,
-          date,
-          campaign,
-          media,  -- 이미 정규화됨
-          job_position,
-          device,
-          campaign_type,
-          \`merge\`,
-          month,
-          week,
-          applicant,
-          2 AS _src_priority
-        FROM \`${SA_PROJECT}.${SA_DATASET}.${SA_ARCHIVE}\`
-      )
-    )
-    WHERE rn = 1;
+    UNION ALL
+
+    SELECT * FROM \`${SA_PROJECT}.${SA_DATASET}.sa_archive\`;
   `;
 
   const [job] = await bq.createQueryJob({ query: sql, useLegacySql: false });
