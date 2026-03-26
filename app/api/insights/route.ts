@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { queryInsights } from '@/lib/bigquery';
+import { queryInsights, queryPortfolioMaxDate } from '@/lib/bigquery';
 import { calcMetrics } from '@/lib/calculations';
 import type { DateRange } from '@/lib/types';
-import { IS_PORTFOLIO, maskAd, transformMetrics } from '@/lib/portfolio/transform';
+import { IS_PORTFOLIO, maskAd, transformMetrics, clampPortfolioDate, getPortfolioDateRange } from '@/lib/portfolio/transform';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,8 +16,12 @@ function normalizeArr(vals: number[]): number[] {
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = req.nextUrl;
-    const start  = searchParams.get('start')!;
-    const end    = searchParams.get('end')!;
+    // 포트폴리오 모드: DB 최신 날짜 기준 1년 범위로 클램핑
+    const pRange = IS_PORTFOLIO ? getPortfolioDateRange(await queryPortfolioMaxDate()) : { min: '', max: '' };
+    const cp = (d: string | null | undefined) => clampPortfolioDate(d, pRange);
+
+    const start  = cp(searchParams.get('start'))  ?? searchParams.get('start')!;
+    const end    = cp(searchParams.get('end'))    ?? searchParams.get('end')!;
     const media  = searchParams.get('media') || undefined;
     const type   = searchParams.get('type')   ?? 'combo'; // combo | image | text
     const sortBy = searchParams.get('sortBy') ?? 'score'; // score | cpa | ctr | cvr

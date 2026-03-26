@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { queryAdPerformance } from '@/lib/bigquery';
-import { getBQClient } from '@/lib/bigquery';
+import { queryAdPerformance, queryPortfolioMaxDate, getBQClient } from '@/lib/bigquery';
+import { IS_PORTFOLIO, clampPortfolioDate, getPortfolioDateRange } from '@/lib/portfolio/transform';
 
 const PROJECT = process.env.NEXT_PUBLIC_BQ_PROJECT_ID!;
 const DATASET = process.env.NEXT_PUBLIC_BQ_DATASET!;
@@ -13,8 +13,11 @@ export async function GET(req: NextRequest) {
     const campaign = searchParams.get('campaign')!;
     const group    = searchParams.get('group')!;
     const ad       = searchParams.get('ad')!;
-    const start    = searchParams.get('start')!;
-    const end      = searchParams.get('end')!;
+    const pRange = IS_PORTFOLIO ? getPortfolioDateRange(await queryPortfolioMaxDate()) : { min: '', max: '' };
+    const cp = (d: string | null | undefined) => clampPortfolioDate(d, pRange);
+
+    const start    = cp(searchParams.get('start')) ?? searchParams.get('start')!;
+    const end      = cp(searchParams.get('end'))   ?? searchParams.get('end')!;
 
     const data = await queryAdPerformance({ start, end }, media, campaign, group, ad);
     return NextResponse.json({ data });

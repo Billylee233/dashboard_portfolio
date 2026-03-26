@@ -13,6 +13,7 @@ import {
   type SADateRange,
   type SAFilter,
 } from '@/lib/saQueries';
+import { queryPortfolioMaxDate } from '@/lib/bigquery';
 import { calcMetrics, calcDelta } from '@/lib/calculations';
 import { calcComparePeriod } from '@/lib/dateUtils';
 import {
@@ -20,6 +21,7 @@ import {
   maskChannel, maskCampaign, maskGroup, maskKeyword,
   transformMetrics,
   buildReverseChannelMap, reverseChannel,
+  clampPortfolioDate, getPortfolioDateRange,
 } from '@/lib/portfolio/transform';
 
 export const dynamic = 'force-dynamic';
@@ -93,18 +95,25 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unknown subtype' }, { status: 400 });
     }
 
-    const start    = sp.get('start');
-    const end      = sp.get('end');
-    const cmpStart = sp.get('cmpStart');
-    const cmpEnd   = sp.get('cmpEnd');
+    const pRange = IS_PORTFOLIO ? getPortfolioDateRange(await queryPortfolioMaxDate()) : { min: '', max: '' };
+    const cp = (d: string | null) => clampPortfolioDate(d, pRange);
+
+    const start    = cp(sp.get('start'))    ?? sp.get('start');
+    const end      = cp(sp.get('end'))      ?? sp.get('end');
+    const cmpStart = cp(sp.get('cmpStart'));
+    const cmpEnd   = cp(sp.get('cmpEnd'));
     if (!start || !end) {
       return NextResponse.json({ error: 'start, end are required' }, { status: 400 });
     }
 
     const selRange: SADateRange = { start, end };
-    const cmpRange: SADateRange = (cmpStart && cmpEnd)
+    const rawCmpSA = (cmpStart && cmpEnd)
       ? { start: cmpStart, end: cmpEnd }
       : (() => { const r = calcComparePeriod(selRange); return { start: r.start, end: r.end }; })();
+    // 포트폴리오 모드: 자동 계산된 비교기간도 허용 범위로 클램핑
+    const cmpRange: SADateRange = IS_PORTFOLIO
+      ? { start: cp(rawCmpSA.start) ?? rawCmpSA.start, end: cp(rawCmpSA.end) ?? rawCmpSA.end }
+      : rawCmpSA;
 
     // 포트폴리오 모드: filter의 media/campaign/group 역매핑
     let filter = buildFilter(sp);

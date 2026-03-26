@@ -6,11 +6,12 @@ import {
   queryAdMetrics,
   queryHierarchyDailyMetrics,
   queryDistinctMedia,
+  queryPortfolioMaxDate,
 } from '@/lib/bigquery';
 import { calcMetrics, calcDelta, calcTrend } from '@/lib/calculations';
 import { calcComparePeriod } from '@/lib/dateUtils';
 import type { DateRange } from '@/lib/types';
-import { IS_PORTFOLIO, maskChannel, maskCampaign, maskGroup, maskAd, transformMetrics, buildReverseChannelMap, reverseChannel } from '@/lib/portfolio/transform';
+import { IS_PORTFOLIO, maskChannel, maskCampaign, maskGroup, maskAd, transformMetrics, buildReverseChannelMap, reverseChannel, clampPortfolioDate, getPortfolioDateRange } from '@/lib/portfolio/transform';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,10 +38,14 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = req.nextUrl;
     let media      = searchParams.get('media')!;
-    const start    = searchParams.get('start')!;
-    const end      = searchParams.get('end')!;
-    const cmpStart = searchParams.get('cmpStart');
-    const cmpEnd   = searchParams.get('cmpEnd');
+    // 포트폴리오 모드: DB 최신 날짜 기준 1년 범위로 클램핑
+    const pRange = IS_PORTFOLIO ? getPortfolioDateRange(await queryPortfolioMaxDate()) : { min: '', max: '' };
+    const cp = (d: string | null | undefined) => clampPortfolioDate(d, pRange);
+
+    const start    = cp(searchParams.get('start'))    ?? searchParams.get('start')!;
+    const end      = cp(searchParams.get('end'))      ?? searchParams.get('end')!;
+    const cmpStart = cp(searchParams.get('cmpStart'));
+    const cmpEnd   = cp(searchParams.get('cmpEnd'));
 
     // 포트폴리오 모드: 마스킹된 채널명 → 실제 채널명으로 역변환
     let revMap = new Map<string, string>();
@@ -51,9 +56,13 @@ export async function GET(req: NextRequest) {
     }
 
     const selected: DateRange = { start, end };
-    const compared: DateRange = cmpStart && cmpEnd
+    const rawCmp = cmpStart && cmpEnd
       ? { start: cmpStart, end: cmpEnd }
       : calcComparePeriod(selected);
+    // 포트폴리오 모드: 자동 계산된 비교기간도 허용 범위로 클램핑
+    const compared: DateRange = IS_PORTFOLIO
+      ? { start: cp(rawCmp.start) ?? rawCmp.start, end: cp(rawCmp.end) ?? rawCmp.end }
+      : rawCmp;
 
     const [
       dailyRaw,

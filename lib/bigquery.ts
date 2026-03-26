@@ -329,6 +329,14 @@ export async function queryRecentTrend() {
   return query(sql);
 }
 
+// 포트폴리오 모드용: DB에 실제 존재하는 최신 날짜 반환
+export async function queryPortfolioMaxDate(): Promise<string> {
+  const rows = await query<{ max_date: string }>(
+    `SELECT CAST(MAX(DATE(date)) AS STRING) AS max_date FROM \`${TABLE}\` WHERE IFNULL(imp,0) > 0`
+  );
+  return rows[0]?.max_date ?? new Date().toISOString().slice(0, 10);
+}
+
 export async function queryDistinctMedia(): Promise<string[]> {
   const rows = await query<{ media: string }>(`SELECT DISTINCT media FROM \`${TABLE}\` WHERE media IS NOT NULL ORDER BY media`);
   return rows.map(r => r.media);

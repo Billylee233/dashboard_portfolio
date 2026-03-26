@@ -12,6 +12,55 @@ import type { MetricsRow } from '@/lib/types';
 export const IS_PORTFOLIO = process.env.PORTFOLIO_MODE === 'true';
 
 // ─────────────────────────────────────────────────────────────
+// 포트폴리오 노출 제한: 채널 화이트리스트
+// ─────────────────────────────────────────────────────────────
+export const PORTFOLIO_CHANNELS = [
+  'Carrot Market',
+  'Instagram',
+  'SA_Naver',
+  'SA_Google',
+  'Naver_CommAD',
+] as const;
+
+/**
+ * DB 최신 날짜(maxDate)를 기준으로 포트폴리오 허용 기간을 계산.
+ * max = maxDate, min = maxDate 기준 1년 전 (당일 포함)
+ *
+ * 사용법: 각 API route에서 queryPortfolioMaxDate()로 maxDate를 가져온 뒤 호출.
+ */
+export function getPortfolioDateRange(maxDate: string): { min: string; max: string } {
+  const minDate = new Date(maxDate);
+  minDate.setFullYear(minDate.getFullYear() - 1);
+  return {
+    max: maxDate,
+    min: minDate.toISOString().slice(0, 10),
+  };
+}
+
+/**
+ * 날짜 문자열을 포트폴리오 허용 기간으로 클램핑.
+ * IS_PORTFOLIO=false이거나 값이 없으면 원본 반환.
+ */
+export function clampPortfolioDate(
+  d: string | null | undefined,
+  range: { min: string; max: string }
+): string | null {
+  if (!IS_PORTFOLIO || !d) return d ?? null;
+  if (d > range.max) return range.max;
+  if (d < range.min) return range.min;
+  return d;
+}
+
+/**
+ * 채널 목록을 포트폴리오 화이트리스트로 필터링.
+ * IS_PORTFOLIO=false면 원본 목록 그대로 반환.
+ */
+export function filterPortfolioChannels(channels: string[]): string[] {
+  if (!IS_PORTFOLIO) return channels;
+  return channels.filter(c => (PORTFOLIO_CHANNELS as readonly string[]).includes(c));
+}
+
+// ─────────────────────────────────────────────────────────────
 // 수치 변환 계수
 // ─────────────────────────────────────────────────────────────
 const M = {
@@ -72,9 +121,6 @@ export function transformMetrics(row: MetricsRow): MetricsRow {
 
 // ─────────────────────────────────────────────────────────────
 // 역채널 매핑 (URL 파라미터 → BQ 쿼리용)
-// ex) /channel-detail?media=채널10 → BigQuery에는 원본명으로 조회
-//
-// 해시는 단방향이라 역변환 불가 → 채널 목록을 조회해서 매칭
 // ─────────────────────────────────────────────────────────────
 export function buildReverseChannelMap(
   realChannels: string[]
@@ -95,7 +141,6 @@ export function reverseChannel(
 
 // ─────────────────────────────────────────────────────────────
 // 포트폴리오 전용 테이블명 반환
-// IS_PORTFOLIO=true → portfolio_ prefix 테이블 사용
 // ─────────────────────────────────────────────────────────────
 export function ptable(baseName: string): string {
   return IS_PORTFOLIO ? `portfolio_${baseName}` : baseName;

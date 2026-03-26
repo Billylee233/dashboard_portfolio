@@ -1,8 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { getBQClient, queryCrisisData } from '@/lib/bigquery';
+import { getBQClient, queryCrisisData, queryPortfolioMaxDate } from '@/lib/bigquery';
 import { calcMetrics, calcDelta } from '@/lib/calculations';
-import { IS_PORTFOLIO, ptable, maskChannel, transformMetrics } from '@/lib/portfolio/transform';
+import { IS_PORTFOLIO, ptable, maskChannel, transformMetrics, clampPortfolioDate, getPortfolioDateRange } from '@/lib/portfolio/transform';
 
 const PROJECT = process.env.NEXT_PUBLIC_BQ_PROJECT_ID!;
 const DATASET  = process.env.NEXT_PUBLIC_BQ_DATASET!;
@@ -16,13 +16,17 @@ async function bq(sql: string, params: Record<string, any> = {}) {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
-  const requestedEnd = searchParams.get('d1')       ?? new Date().toISOString().slice(0, 10);
-  const selStart     = searchParams.get('selStart') ?? null;
-  const selEnd       = searchParams.get('selEnd')   ?? requestedEnd;
-  const cmpStart     = searchParams.get('cmpStart') ?? null;
-  const cmpEnd       = searchParams.get('cmpEnd')   ?? null;
 
   try {
+    // 포트폴리오 모드: DB 최신 날짜 기준 1년 범위로 클램핑
+    const pRange = IS_PORTFOLIO ? getPortfolioDateRange(await queryPortfolioMaxDate()) : { min: '', max: '' };
+    const cp = (d: string | null | undefined) => clampPortfolioDate(d, pRange);
+
+    const requestedEnd = cp(searchParams.get('d1') ?? new Date().toISOString().slice(0, 10)) ?? (pRange.max || new Date().toISOString().slice(0, 10));
+    const selStart     = cp(searchParams.get('selStart'));
+    const selEnd       = cp(searchParams.get('selEnd') ?? requestedEnd);
+    const cmpStart     = cp(searchParams.get('cmpStart'));
+    const cmpEnd       = cp(searchParams.get('cmpEnd'));
     // ── BQ 최신 날짜 자동 탐색 ───────────────────────────────────────────────
     const latestRows = await bq(
       `SELECT CAST(MAX(DATE(date)) AS STRING) as latest_date

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { queryAdPerformanceDaily, queryDistinctMedia, getBQClient } from '@/lib/bigquery';
+import { queryAdPerformanceDaily, queryDistinctMedia, getBQClient, queryPortfolioMaxDate } from '@/lib/bigquery';
 import { calcMetrics } from '@/lib/calculations';
-import { IS_PORTFOLIO, buildReverseChannelMap, reverseChannel, maskCampaign, transformMetrics } from '@/lib/portfolio/transform';
+import { IS_PORTFOLIO, buildReverseChannelMap, reverseChannel, maskCampaign, transformMetrics, clampPortfolioDate, getPortfolioDateRange } from '@/lib/portfolio/transform';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -9,14 +9,18 @@ export async function GET(req: NextRequest) {
   let campaign  = searchParams.get('campaign')  ?? '';
   const group   = searchParams.get('group')     ?? undefined;
   const ad      = searchParams.get('ad')        ?? undefined;
-  const dateStart = searchParams.get('dateStart') ?? '';
-  const dateEnd   = searchParams.get('dateEnd')   ?? '';
-
-  if (!media || !campaign || !dateStart || !dateEnd) {
-    return NextResponse.json({ error: 'media, campaign, dateStart, dateEnd 필수' }, { status: 400 });
-  }
 
   try {
+    // 포트폴리오 모드: DB 최신 날짜 기준 1년 범위로 클램핑
+    const pRange = IS_PORTFOLIO ? getPortfolioDateRange(await queryPortfolioMaxDate()) : { min: '', max: '' };
+    const cp = (d: string) => clampPortfolioDate(d, pRange) ?? d;
+
+    const dateStart = cp(searchParams.get('dateStart') ?? '');
+    const dateEnd   = cp(searchParams.get('dateEnd')   ?? '');
+
+    if (!media || !campaign || !dateStart || !dateEnd) {
+      return NextResponse.json({ error: 'media, campaign, dateStart, dateEnd 필수' }, { status: 400 });
+    }
     if (IS_PORTFOLIO) {
       // media 역변환
       const realChannels = await queryDistinctMedia();

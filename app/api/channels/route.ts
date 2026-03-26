@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { queryDistinctMedia, queryActiveChannels } from '@/lib/bigquery';
-import { IS_PORTFOLIO, maskChannel } from '@/lib/portfolio/transform';
+import { IS_PORTFOLIO, maskChannel, filterPortfolioChannels } from '@/lib/portfolio/transform';
 
 export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
@@ -15,7 +15,8 @@ export async function GET(req: NextRequest) {
       ? await queryActiveChannels(selStart, selEnd, cmpStart, cmpEnd)
       : await queryDistinctMedia();
 
-    const finalChannels = IS_PORTFOLIO ? channels.map(maskChannel) : channels;
+    const allowed       = filterPortfolioChannels(channels);
+    const finalChannels = IS_PORTFOLIO ? allowed.map(maskChannel) : allowed;
     return NextResponse.json({ channels: finalChannels });
   } catch (err: any) {
     return NextResponse.json({ channels: [], error: err.message }, { status: 500 });
