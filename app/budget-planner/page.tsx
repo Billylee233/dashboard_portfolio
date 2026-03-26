@@ -10,6 +10,8 @@ import {
 import { fmt } from '@/lib/calculations';
 import { useTheme } from '@/components/ui/ThemeEditor';
 import EmptyState from '@/components/ui/EmptyState';
+import { useChannels } from '@/lib/useChannels';
+import { useDashboard } from '@/components/layout/DashboardLayout';
 
 // ── 분석 방법론 접기/펼치기 컴포넌트 ─────────────────────────────────
 function MethodBlock({ title, children }: { title: string; children: React.ReactNode }) {
@@ -45,31 +47,9 @@ function MethodologySection({ title, children }: { title: string; children: Reac
   );
 }
 
-const IS_PORTFOLIO_CLIENT = process.env.NEXT_PUBLIC_PORTFOLIO_MODE === 'true';
-
-const CHANNELS = IS_PORTFOLIO_CLIENT ? [
-  '채널45','채널52','채널88','채널90','채널69',
-  '채널83','채널27','채널90','채널67',
-  '채널42','채널60','채널80','채널83',
-] : [
-  'Brand_Search_Naver','SA_Carrot','SA_Daum','SA_Google','SA_Naver',
-  'Kakao_Tokchannel','Carrot Market','Criteo','Demandgen',
-  'Google_pmax','Instagram','Tiktok','toss',
-];
-
-// 채널별 색상
-const CHANNEL_COLORS: Record<string, string> = IS_PORTFOLIO_CLIENT ? {
-  '채널45': '#38bdf8', '채널52': '#f97316', '채널88': '#a78bfa',
-  '채널90': '#34d399', '채널69': '#4ade80', '채널83': '#facc15',
-  '채널27': '#fb923c', '채널67': '#67e8f9',
-  '채널42': '#f472b6', '채널60': '#c084fc', '채널80': '#94a3b8',
-} : {
-  Brand_Search_Naver: '#38bdf8', SA_Carrot:    '#f97316', SA_Daum:    '#a78bfa',
-  SA_Google:          '#34d399', SA_Naver:     '#4ade80', Kakao_Tokchannel: '#facc15',
-  'Carrot Market':    '#fb923c', Criteo:       '#e879f9', Demandgen:  '#67e8f9',
-  Google_pmax:        '#f472b6', Instagram:    '#c084fc', Tiktok:     '#94a3b8',
-  toss:               '#60a5fa',
-};
+// 채널별 색상 (동적 할당 - 채널 순서 기반)
+const PALETTE = ['#38bdf8','#f97316','#a78bfa','#34d399','#4ade80','#facc15','#fb923c','#e879f9','#67e8f9','#f472b6','#c084fc','#94a3b8','#60a5fa','#f87171'];
+const CHANNEL_COLORS: Record<string, string> = {};
 
 interface SatBin {
   binCost: number;
@@ -139,17 +119,24 @@ function BudgetPlannerPage() {
   const theme = useTheme();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { selectedRange, compareRange } = useDashboard();
+  const chRange = { selStart: selectedRange.start, selEnd: selectedRange.end, cmpStart: compareRange.start, cmpEnd: compareRange.end };
+  const { channels } = useChannels(chRange);
   // URL params에서 기간/채널 읽기 (헤더 컨트롤과 공유)
   const period = (Number(searchParams.get('days') ?? '90')) as 30 | 60 | 90 | 180;
-  const selectedChannel = searchParams.get('media') ?? CHANNELS[0];
+  const selectedChannel = searchParams.get('media') ?? channels[0] ?? '';
 
   const [curveData, setCurveData] = useState<ChannelCurve | null>(null);
   const [curveLoading, setCurveLoading] = useState(false);
   const [allSummary, setAllSummary] = useState<ChannelSummary[]>([]);
   const [allLoading, setAllLoading] = useState(false);
 
+  // 동적 색상 할당
+  channels.forEach((ch, i) => { if (!CHANNEL_COLORS[ch]) CHANNEL_COLORS[ch] = PALETTE[i % PALETTE.length]; });
+
   // 선택 채널 반응 곡선 조회
   useEffect(() => {
+    if (!selectedChannel) return;
     const load = async () => {
       setCurveLoading(true);
       try {
@@ -169,7 +156,7 @@ function BudgetPlannerPage() {
       setAllLoading(true);
       try {
         const results = await Promise.all(
-          CHANNELS.map(ch =>
+          channels.map(ch =>
             fetch(`/api/budget?media=${encodeURIComponent(ch)}&days=${period}`)
               .then(r => r.json())
               .catch(() => null)
@@ -191,7 +178,7 @@ function BudgetPlannerPage() {
       }
     };
     loadAll();
-  }, [period]);
+  }, [period, channels.join(',')]);
 
   // Marginal Return 재설계: 현재 예산 기준 ±20스텝 × ₩5만 직접 계산
   const marginalCurve = useMemo(() => {
