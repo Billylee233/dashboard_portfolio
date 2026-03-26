@@ -17,7 +17,7 @@ export const IS_PORTFOLIO = process.env.PORTFOLIO_MODE === 'true';
 export const PORTFOLIO_CHANNELS = [
   'Carrot Market',
   'Instagram',
-  'SA_Naver',
+  'Toss',
   'SA_Google',
   'Naver_CommAD',
 ] as const;
