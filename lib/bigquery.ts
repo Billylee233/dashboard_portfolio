@@ -55,11 +55,11 @@ export async function queryD1Summary() {
   return query(sql);
 }
 
-export async function queryDailyMetrics(range: DateRange, media?: string) {
+export async function queryDailyMetrics(range: DateRange, media?: string, mediaFilter = '') {
   const sql = `
     SELECT CAST(date AS STRING) AS date, ${media ? "media," : ""} ${METRICS_SQL}
     FROM \`${TABLE}\`
-    WHERE date BETWEEN @start AND @end ${media ? "AND media = @media" : ""}
+    WHERE date BETWEEN @start AND @end ${media ? "AND media = @media" : ""} ${mediaFilter}
     GROUP BY date ${media ? ", media" : ""}
     ORDER BY date
   `;
@@ -68,18 +68,18 @@ export async function queryDailyMetrics(range: DateRange, media?: string) {
   return query(sql, params);
 }
 
-export async function queryChannelMetrics(range: DateRange) {
+export async function queryChannelMetrics(range: DateRange, mediaFilter = '') {
   const sql = `
     SELECT media, ${METRICS_SQL}
     FROM \`${TABLE}\`
-    WHERE date BETWEEN @start AND @end
+    WHERE date BETWEEN @start AND @end ${mediaFilter}
     GROUP BY media
     ORDER BY applicant DESC
   `;
   return query(sql, { start: range.start, end: range.end });
 }
 
-export async function queryApplicantTrend(range: DateRange, media?: string) {
+export async function queryApplicantTrend(range: DateRange, media?: string, mediaFilter = '') {
   const sql = `
     SELECT CAST(date AS STRING) AS date,
       SUM(IFNULL(imp,0)) AS imp,
@@ -87,7 +87,7 @@ export async function queryApplicantTrend(range: DateRange, media?: string) {
       SUM(IFNULL(cost,0)) AS cost,
       SUM(IFNULL(applicant,0)) AS applicant
     FROM \`${TABLE}\`
-    WHERE date BETWEEN @start AND @end ${media ? "AND media = @media" : ""}
+    WHERE date BETWEEN @start AND @end ${media ? "AND media = @media" : ""} ${mediaFilter} ${mediaFilter}
     GROUP BY date ORDER BY date
   `;
   const params: any = { start: range.start, end: range.end };
@@ -110,7 +110,7 @@ export async function queryChannelComparison(selected: DateRange, compared: Date
   return query(sql, { selStart: selected.start, selEnd: selected.end, cmpStart: compared.start, cmpEnd: compared.end });
 }
 
-export async function queryCrisisData(latestDate?: string) {
+export async function queryCrisisData(latestDate?: string, mediaFilter = '') {
   // latestDate를 전역 기준으로 사용 (채널별 max_date 대신)
   // latestDate 없으면 전역 MAX로 폴백
   const latestExpr = latestDate ? `DATE('${latestDate}')` : `(SELECT MAX(date) FROM \`${TABLE}\`)`;
@@ -121,37 +121,37 @@ export async function queryCrisisData(latestDate?: string) {
       SELECT media, ${METRICS_SQL}
       FROM \`${TABLE}\`
       WHERE date = ${latestExpr}
-        AND IFNULL(imp, 0) > 0
+        AND IFNULL(imp, 0) > 0 ${mediaFilter}
       GROUP BY media
     ),
     d1_prev AS (
       SELECT media, ${METRICS_SQL}
       FROM \`${TABLE}\`
-      WHERE date = DATE_SUB(${latestExpr}, INTERVAL 7 DAY)
+      WHERE date = DATE_SUB(${latestExpr}, INTERVAL 7 DAY) ${mediaFilter}
       GROUP BY media
     ),
     r3 AS (
       SELECT media, ${METRICS_SQL}
       FROM \`${TABLE}\`
-      WHERE date BETWEEN DATE_SUB(${latestExpr}, INTERVAL 2 DAY) AND ${latestExpr}
+      WHERE date BETWEEN DATE_SUB(${latestExpr}, INTERVAL 2 DAY) AND ${latestExpr} ${mediaFilter}
       GROUP BY media
     ),
     r3_prev AS (
       SELECT media, ${METRICS_SQL}
       FROM \`${TABLE}\`
-      WHERE date BETWEEN DATE_SUB(${latestExpr}, INTERVAL 9 DAY) AND DATE_SUB(${latestExpr}, INTERVAL 7 DAY)
+      WHERE date BETWEEN DATE_SUB(${latestExpr}, INTERVAL 9 DAY) AND DATE_SUB(${latestExpr}, INTERVAL 7 DAY) ${mediaFilter}
       GROUP BY media
     ),
     r7 AS (
       SELECT media, ${METRICS_SQL}
       FROM \`${TABLE}\`
-      WHERE date BETWEEN DATE_SUB(${latestExpr}, INTERVAL 6 DAY) AND ${latestExpr}
+      WHERE date BETWEEN DATE_SUB(${latestExpr}, INTERVAL 6 DAY) AND ${latestExpr} ${mediaFilter}
       GROUP BY media
     ),
     r7_prev AS (
       SELECT media, ${METRICS_SQL}
       FROM \`${TABLE}\`
-      WHERE date BETWEEN DATE_SUB(${latestExpr}, INTERVAL 13 DAY) AND DATE_SUB(${latestExpr}, INTERVAL 7 DAY)
+      WHERE date BETWEEN DATE_SUB(${latestExpr}, INTERVAL 13 DAY) AND DATE_SUB(${latestExpr}, INTERVAL 7 DAY) ${mediaFilter}
       GROUP BY media
     )
     SELECT d1.media,
@@ -268,7 +268,7 @@ export async function deleteABTest(test_id: string) {
   await query(`DELETE FROM \`${AB_TEST}\` WHERE test_id = @test_id`, { test_id });
 }
 
-export async function queryInsights(range: DateRange, media?: string) {
+export async function queryInsights(range: DateRange, media?: string, mediaFilter = '') {
   const sql = `
     WITH daily AS (
       SELECT image_code, text_code,
@@ -280,7 +280,7 @@ export async function queryInsights(range: DateRange, media?: string) {
         SUM(CASE WHEN imp <= 1 THEN 1 ELSE 0 END) AS low_imp_days
       FROM \`${TABLE}\`
       WHERE date BETWEEN @start AND @end
-        ${media ? 'AND media = @media' : ''}
+        ${media ? 'AND media = @media' : ''} ${mediaFilter}
         AND (image_code IS NOT NULL OR text_code IS NOT NULL)
         -- error / Unknown / - / 임시 소재 제외
         AND COALESCE(image_code, '') NOT IN ('error', 'Unknown', '-', '')

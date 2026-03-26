@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { getBQClient, queryCrisisData, queryPortfolioMaxDate } from '@/lib/bigquery';
 import { calcMetrics, calcDelta } from '@/lib/calculations';
-import { IS_PORTFOLIO, ptable, maskChannel, transformMetrics, clampPortfolioDate, getPortfolioDateRange } from '@/lib/portfolio/transform';
+import { IS_PORTFOLIO, ptable, maskChannel, transformMetrics, clampPortfolioDate, getPortfolioDateRange, portfolioMediaSQL } from '@/lib/portfolio/transform';
 
 const PROJECT = process.env.NEXT_PUBLIC_BQ_PROJECT_ID!;
 const DATASET  = process.env.NEXT_PUBLIC_BQ_DATASET!;
@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
     // 포트폴리오 모드: DB 최신 날짜 기준 1년 범위로 클램핑
     const pRange = IS_PORTFOLIO ? getPortfolioDateRange(await queryPortfolioMaxDate()) : { min: '', max: '' };
     const cp = (d: string | null | undefined) => clampPortfolioDate(d, pRange);
+    const mf = portfolioMediaSQL(); // media IN 화이트리스트 필터
 
     const requestedEnd = cp(searchParams.get('d1') ?? new Date().toISOString().slice(0, 10)) ?? (pRange.max || new Date().toISOString().slice(0, 10));
     const selStart     = cp(searchParams.get('selStart'));
@@ -60,7 +61,7 @@ export async function GET(req: NextRequest) {
             SAFE_DIVIDE(SUM(IFNULL(applicant,0)), NULLIF(SUM(IFNULL(click,0)),0))     as cvr
           FROM ${T}
           WHERE DATE(date) BETWEEN ${trendSelStart} AND @periodEnd
-            AND IFNULL(imp,0) > 0
+            AND IFNULL(imp,0) > 0 ${mf}
           GROUP BY 1 ORDER BY 1`;
       })(), { periodStart, periodEnd }),
 
@@ -87,7 +88,7 @@ export async function GET(req: NextRequest) {
                 SAFE_DIVIDE(SUM(IFNULL(applicant,0)), NULLIF(SUM(IFNULL(click,0)),0))     as cvr
               FROM ${T}
               WHERE DATE(date) BETWEEN ${cmpS} AND ${cmpE}
-                AND IFNULL(imp,0) > 0
+                AND IFNULL(imp,0) > 0 ${mf}
               GROUP BY 1 ORDER BY 1`, params);
       })(),
 
@@ -103,7 +104,7 @@ export async function GET(req: NextRequest) {
             SAFE_DIVIDE(SUM(IFNULL(applicant,0)), NULLIF(SUM(IFNULL(click,0)),0))     as cvr
           FROM ${T}
           WHERE DATE(date) BETWEEN @periodStart AND @periodEnd
-            AND IFNULL(imp,0) > 0
+            AND IFNULL(imp,0) > 0 ${mf}
           GROUP BY 1`, { periodStart, periodEnd }),
 
       // 채널별 비교기간 일평균 (없으면 D-7)
@@ -118,7 +119,7 @@ export async function GET(req: NextRequest) {
                 SAFE_DIVIDE(SUM(IFNULL(cost,0)),      NULLIF(SUM(IFNULL(applicant,0)),0)) as cpa,
                 SAFE_DIVIDE(SUM(IFNULL(applicant,0)), NULLIF(SUM(IFNULL(click,0)),0))     as cvr
               FROM ${T}
-              WHERE DATE(date) BETWEEN @prevStart AND @prevEnd AND IFNULL(imp,0) > 0
+              WHERE DATE(date) BETWEEN @prevStart AND @prevEnd AND IFNULL(imp,0) > 0 ${mf}
               GROUP BY 1`, { prevStart, prevEnd })
         : bq(`SELECT media,
                 SUM(IFNULL(imp,0))       as imp,
@@ -130,7 +131,7 @@ export async function GET(req: NextRequest) {
                 SAFE_DIVIDE(SUM(IFNULL(cost,0)),      NULLIF(SUM(IFNULL(applicant,0)),0)) as cpa,
                 SAFE_DIVIDE(SUM(IFNULL(applicant,0)), NULLIF(SUM(IFNULL(click,0)),0))     as cvr
               FROM ${T}
-              WHERE DATE(date) = DATE_SUB(@d1End, INTERVAL 7 DAY) AND IFNULL(imp,0) > 0
+              WHERE DATE(date) = DATE_SUB(@d1End, INTERVAL 7 DAY) AND IFNULL(imp,0) > 0 ${mf}
               GROUP BY 1`, { d1End }),
 
       // 버블: 선택기간 채널별 totals
@@ -140,11 +141,11 @@ export async function GET(req: NextRequest) {
             SAFE_DIVIDE(SUM(IFNULL(cost,0)), NULLIF(SUM(IFNULL(applicant,0)),0)) as cpa
           FROM ${T}
           WHERE DATE(date) BETWEEN @periodStart AND @periodEnd
-            AND IFNULL(imp,0) > 0
+            AND IFNULL(imp,0) > 0 ${mf}
           GROUP BY 1 HAVING applicant > 0`, { periodStart, periodEnd }),
 
       // Crisis data
-      queryCrisisData(d1End),
+      queryCrisisData(d1End, mf),
     ]);
 
     // ── Crisis 처리 + deduplicate ────────────────────────────────────────────
@@ -216,7 +217,7 @@ export async function GET(req: NextRequest) {
           SUM(IFNULL(cost,0)) as total_cost
         FROM ${T}
         WHERE DATE(date) BETWEEN DATE_SUB(@d1End, INTERVAL 27 DAY) AND @d1End
-          AND IFNULL(imp,0) > 1
+          AND IFNULL(imp,0) > 1 ${mf}
         GROUP BY media
       ),
       prior_window AS (
@@ -224,7 +225,7 @@ export async function GET(req: NextRequest) {
         FROM ${T}
         WHERE DATE(date) BETWEEN DATE_SUB(@d1End, INTERVAL 41 DAY)
                               AND DATE_SUB(@d1End, INTERVAL 28 DAY)
-          AND IFNULL(imp,0) > 1
+          AND IFNULL(imp,0) > 1 ${mf}
       )
       SELECT r.media, r.first_live,
         r.days_active,

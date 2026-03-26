@@ -60,6 +60,19 @@ export function filterPortfolioChannels(channels: string[]): string[] {
   return channels.filter(c => (PORTFOLIO_CHANNELS as readonly string[]).includes(c));
 }
 
+/**
+ * BigQuery SQL용 media 화이트리스트 필터 문자열 반환.
+ * IS_PORTFOLIO=true  → "AND media IN ('Carrot Market','Instagram',...)" 
+ * IS_PORTFOLIO=false → "" (조건 없음)
+ *
+ * 사용 예: `WHERE DATE(date) BETWEEN ... ${portfolioMediaSQL()}`
+ */
+export function portfolioMediaSQL(): string {
+  if (!IS_PORTFOLIO) return '';
+  const list = (PORTFOLIO_CHANNELS as readonly string[]).map(c => `'${c}'`).join(', ');
+  return `AND media IN (${list})`;
+}
+
 // ─────────────────────────────────────────────────────────────
 // 수치 변환 계수
 // ─────────────────────────────────────────────────────────────

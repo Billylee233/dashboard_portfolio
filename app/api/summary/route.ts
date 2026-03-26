@@ -5,11 +5,12 @@ import {
   queryChannelMetrics,
   queryCrisisData,
   queryApplicantTrend,
+  queryPortfolioMaxDate,
 } from '@/lib/bigquery';
 import { calcMetrics, calcDelta, calcTrend } from '@/lib/calculations';
 import { calcComparePeriod } from '@/lib/dateUtils';
 import type { DateRange } from '@/lib/types';
-import { IS_PORTFOLIO, maskChannel, transformMetrics } from '@/lib/portfolio/transform';
+import { IS_PORTFOLIO, maskChannel, transformMetrics, portfolioMediaSQL, clampPortfolioDate, getPortfolioDateRange } from '@/lib/portfolio/transform';
 
 export const revalidate = 3600;
 
@@ -34,18 +35,28 @@ export async function GET(req: NextRequest) {
     const cmpStart = searchParams.get('cmpStart');
     const cmpEnd   = searchParams.get('cmpEnd');
 
-    const selected: DateRange = { start, end };
-    const compared: DateRange = cmpStart && cmpEnd
+    // 포트폴리오 모드: DB 최신 날짜 기준 1년 범위 클램핑 + 채널 필터
+    const pRange = IS_PORTFOLIO ? getPortfolioDateRange(await queryPortfolioMaxDate()) : { min: '', max: '' };
+    const cp = (d: string | null | undefined) => clampPortfolioDate(d, pRange);
+    const mf = portfolioMediaSQL();
+
+    const clampedStart = cp(start) ?? start;
+    const clampedEnd   = cp(end)   ?? end;
+    const selected: DateRange = { start: clampedStart, end: clampedEnd };
+    const rawCmp = cmpStart && cmpEnd
       ? { start: cmpStart, end: cmpEnd }
       : calcComparePeriod(selected);
+    const compared: DateRange = IS_PORTFOLIO
+      ? { start: cp(rawCmp.start) ?? rawCmp.start, end: cp(rawCmp.end) ?? rawCmp.end }
+      : rawCmp;
 
     const [dailyRaw, channelSel, channelCmp, crisisRaw, trendRaw, compareTrendRaw] = await Promise.all([
-      queryDailyMetrics(selected),
-      queryChannelMetrics(selected),
-      queryChannelMetrics(compared),
-      queryCrisisData(selected.end),
-      queryApplicantTrend(selected),
-      queryApplicantTrend(compared),
+      queryDailyMetrics(selected, undefined, mf),
+      queryChannelMetrics(selected, mf),
+      queryChannelMetrics(compared, mf),
+      queryCrisisData(selected.end, mf),
+      queryApplicantTrend(selected, undefined, mf),
+      queryApplicantTrend(compared, undefined, mf),
     ]);
 
     // Period Summary (선택 기간 합계) — D-1 고정값 대신

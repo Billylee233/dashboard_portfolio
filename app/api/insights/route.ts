@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { queryInsights, queryPortfolioMaxDate } from '@/lib/bigquery';
 import { calcMetrics } from '@/lib/calculations';
 import type { DateRange } from '@/lib/types';
-import { IS_PORTFOLIO, maskAd, transformMetrics, clampPortfolioDate, getPortfolioDateRange } from '@/lib/portfolio/transform';
+import { IS_PORTFOLIO, maskAd, transformMetrics, clampPortfolioDate, getPortfolioDateRange, portfolioMediaSQL } from '@/lib/portfolio/transform';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
     const sortBy = searchParams.get('sortBy') ?? 'score'; // score | cpa | ctr | cvr
 
     const range: DateRange = { start, end };
-    const raw = await queryInsights(range, media);
+    const raw = await queryInsights(range, media, portfolioMediaSQL());
 
     const extract = (v: any) => {
       if (v == null) return null;
