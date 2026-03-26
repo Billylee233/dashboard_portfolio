@@ -13,7 +13,7 @@ import { thStickyStyle, tdStyle, rowBg, hexToRgb, heatmapBg, TABLE_MAX_H, COL_W 
 import { parseFilterFromParams } from '@/components/sa/SAFilterBar';
 import { KeywordLeaderboard } from '@/components/sa/KeywordLeaderboard';
 import { KeywordMovementTable } from '@/components/sa/KeywordMovementTable';
-import { KeywordActionList, type ActionSettings } from '@/components/sa/KeywordActionList';
+import { KeywordActionList, type ActionSettings, DEFAULT_RULES, DEFAULT_EXCLUDES } from '@/components/sa/KeywordActionList';
 import { KeywordExplorer } from '@/components/sa/KeywordExplorer';
 
 // ─── 날짜 유틸 — overview-detail과 동일 ──────────────────────────────────────
@@ -239,8 +239,8 @@ function SADetailContent() {
   const ps = selData?.periodSummary;
 
   // ── 공유 Action 설정 (BigQuery) ───────────────────────────────────────────
-  const [actionRules,    setActionRules]    = useState<any[]>([]);
-  const [actionExcludes, setActionExcludes] = useState<any[]>([]);
+  const [actionRules,    setActionRules]    = useState<any[]>(DEFAULT_RULES);
+  const [actionExcludes, setActionExcludes] = useState<any[]>(DEFAULT_EXCLUDES);
   const [settingsLoading, setSettingsLoading] = useState(true);
 
   useEffect(() => {

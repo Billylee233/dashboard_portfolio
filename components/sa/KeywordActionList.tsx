@@ -30,40 +30,37 @@ interface ActionRule   { label: SAActionLabel; conditions: Condition[]; }
 interface ExcludeRule  { id: string; metric: MetricKey; operator: Operator; value: number; logic: Logic; }
 
 // ─── 기본값 ──────────────────────────────────────────────────────────────────
-const DEFAULT_RULES: ActionRule[] = [
+export const DEFAULT_RULES: ActionRule[] = [
   { label: '최상위 유지', conditions: [
     { id:'1a', metric:'applicant', operator:'>=', value:3,   valueType:'absolute', logic:'AND' },
-    { id:'1b', metric:'cvr',       operator:'>=', value:1.3, valueType:'groupAvg', logic:'AND' },
-    { id:'1c', metric:'cpa',       operator:'<=', value:0.7, valueType:'groupAvg', logic:'AND' },
+    { id:'1b', metric:'cpa',       operator:'<=', value:0.7, valueType:'groupAvg', logic:'AND' },
   ]},
   { label: '단가 UP', conditions: [
     { id:'2a', metric:'applicant', operator:'>=', value:1,   valueType:'absolute', logic:'AND' },
-    { id:'2b', metric:'cvr',       operator:'>=', value:1.0, valueType:'groupAvg', logic:'AND' },
-    { id:'2c', metric:'cpa',       operator:'<=', value:1.0, valueType:'groupAvg', logic:'AND' },
+    { id:'2b', metric:'cpa',       operator:'<=', value:1.0, valueType:'groupAvg', logic:'AND' },
   ]},
   { label: '현상 유지', conditions: [
     { id:'3a', metric:'applicant', operator:'>=', value:1,   valueType:'absolute', logic:'AND' },
-    { id:'3b', metric:'cvr',       operator:'>=', value:0.7, valueType:'groupAvg', logic:'AND' },
-    { id:'3c', metric:'cvr',       operator:'<=', value:1.3, valueType:'groupAvg', logic:'AND' },
-    { id:'3d', metric:'cpa',       operator:'>=', value:0.7, valueType:'groupAvg', logic:'AND' },
-    { id:'3e', metric:'cpa',       operator:'<=', value:1.3, valueType:'groupAvg', logic:'AND' },
+    { id:'3b', metric:'cpa',       operator:'>=', value:0.7, valueType:'groupAvg', logic:'AND' },
+    { id:'3c', metric:'cpa',       operator:'<=', value:1.5, valueType:'groupAvg', logic:'AND' },
   ]},
   { label: '단가 DOWN', conditions: [
     { id:'4a', metric:'applicant', operator:'>=', value:1,   valueType:'absolute', logic:'AND' },
-    { id:'4b', metric:'cvr',       operator:'<',  value:0.7, valueType:'groupAvg', logic:'OR'  },
-    { id:'4c', metric:'cpa',       operator:'>',  value:1.3, valueType:'groupAvg', logic:'AND' },
+    { id:'4b', metric:'cpa',       operator:'>=', value:1.6, valueType:'groupAvg', logic:'AND' },
+    { id:'4c', metric:'cpa',       operator:'<=', value:2.9, valueType:'groupAvg', logic:'AND' },
   ]},
   { label: '검토 필요', conditions: [
     { id:'5a', metric:'applicant', operator:'<',  value:1,   valueType:'absolute', logic:'AND' },
+    { id:'5b', metric:'cpa',       operator:'>=', value:1.7, valueType:'groupAvg', logic:'AND' },
+    { id:'5c', metric:'cpa',       operator:'>=', value:1.9, valueType:'groupAvg', logic:'AND' },
   ]},
   { label: 'OFF 권고', conditions: [
     { id:'6a', metric:'applicant', operator:'<',  value:1,   valueType:'absolute', logic:'AND' },
-    { id:'6b', metric:'cvr',       operator:'<=', value:0.5, valueType:'groupAvg', logic:'OR'  },
-    { id:'6c', metric:'cpa',       operator:'>',  value:2.0, valueType:'groupAvg', logic:'AND' },
+    { id:'6b', metric:'cpa',       operator:'>',  value:3.0, valueType:'groupAvg', logic:'AND' },
   ]},
 ];
 
-const DEFAULT_EXCLUDES: ExcludeRule[] = [
+export const DEFAULT_EXCLUDES: ExcludeRule[] = [
   { id:'e1', metric:'cost',  operator:'<',  value:1000, logic:'OR' },
   { id:'e2', metric:'click', operator:'<=', value:1,    logic:'OR' },
 ];
