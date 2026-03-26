@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, useEffect, Suspense } from 'react';
+import { useChannels } from '@/lib/useChannels';
 import Link from 'next/link';
 import { SAHeaderFilter } from '@/components/sa/SAFilterBar';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -142,17 +143,23 @@ function SyncButton() {
 }
 
 // ─── Budget Planner 전용 채널+기간 컨트롤 ────────────────────────────────────
-const BUDGET_CHANNELS = [
-  'Brand_Search_Naver','SA_Carrot','SA_Daum','SA_Google','SA_Naver',
-  'Kakao_Tokchannel','Carrot Market','Criteo','Demandgen',
-  'Google_pmax','Instagram','Tiktok','toss',
-];
-
 function BudgetPlannerControls() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const days = Number(searchParams.get('days') ?? '90');
-  const media = searchParams.get('media') ?? BUDGET_CHANNELS[0];
+  const mediaParam = searchParams.get('media') ?? '';
+  const { selectedRange, compareRange } = useDashboard();
+  const chRange = { selStart: selectedRange.start, selEnd: selectedRange.end, cmpStart: compareRange.start, cmpEnd: compareRange.end };
+  const { channels, loading: chLoading } = useChannels(chRange);
+
+  // 채널 로드 후 URL에 media 없으면 첫 번째 채널로 자동 세팅
+  useEffect(() => {
+    if (!mediaParam && channels.length > 0) {
+      router.replace(`/budget-planner?days=${days}&media=${encodeURIComponent(channels[0])}`);
+    }
+  }, [channels, mediaParam]); // eslint-disable-line
+
+  const media = mediaParam || channels[0] || '';
 
   const navigate = (newDays: number, newMedia: string) => {
     router.push(`/budget-planner?days=${newDays}&media=${encodeURIComponent(newMedia)}`);
@@ -175,16 +182,20 @@ function BudgetPlannerControls() {
         ))}
       </div>
       <div style={{ borderLeft: '1px solid var(--color-border-subtle)', paddingLeft: 8 }}>
-        <select value={media} onChange={e => navigate(days, e.target.value)}
-          style={{
-            backgroundColor: 'var(--color-surface-1)',
-            border: '1px solid var(--color-accent)',
-            borderRadius: 'var(--radius-sm)', padding: '3px 8px',
-            fontSize: 'var(--font-label)', fontWeight: 700,
-            color: 'var(--color-accent)', cursor: 'pointer', outline: 'none', minWidth: 140,
-          }}>
-          {BUDGET_CHANNELS.map(ch => <option key={ch} value={ch}>{ch}</option>)}
-        </select>
+        {chLoading ? (
+          <span style={{ fontSize: 'var(--font-label)', color: 'var(--color-text-muted)', padding: '3px 8px' }}>로딩...</span>
+        ) : (
+          <select value={media} onChange={e => navigate(days, e.target.value)}
+            style={{
+              backgroundColor: 'var(--color-surface-1)',
+              border: '1px solid var(--color-accent)',
+              borderRadius: 'var(--radius-sm)', padding: '3px 8px',
+              fontSize: 'var(--font-label)', fontWeight: 700,
+              color: 'var(--color-accent)', cursor: 'pointer', outline: 'none', minWidth: 140,
+            }}>
+            {channels.map(ch => <option key={ch} value={ch}>{ch}</option>)}
+          </select>
+        )}
       </div>
     </div>
   );
