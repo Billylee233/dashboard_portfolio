@@ -180,8 +180,10 @@ function ChannelDetailPage() {
   const durDays    = isSingle ? 6 : Math.round(
     (new Date(trendEnd + 'T12:00:00Z').getTime() - new Date(trendStart + 'T12:00:00Z').getTime()) / 86400000
   );
-  const trendCmpEnd   = addD(trendStart, -1);
-  const trendCmpStart = addD(trendCmpEnd, -durDays);
+  // 단일일: 확장된 7일 트렌드에 맞춰 자동 계산
+  // 기간 선택: 사용자가 헤더에서 선택한 compareRange 그대로 사용
+  const trendCmpEnd   = isSingle ? addD(trendStart, -1) : compareRange.end;
+  const trendCmpStart = isSingle ? addD(trendCmpEnd, -durDays) : compareRange.start;
 
   // ── fetch A: Trend / Periodicity / Daily (trendStart~trendEnd) ──────────────
   const [trendData, setTrendData] = useState<any>(null);
