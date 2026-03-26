@@ -245,6 +245,17 @@ function SADetailContent() {
 
   useEffect(() => {
     setSettingsLoading(true);
+    if (IS_PORTFOLIO_CLIENT) {
+      // 포트폴리오 모드: localStorage에서 로드
+      try {
+        const rules    = localStorage.getItem('portfolio_action_action_criteria');
+        const excludes = localStorage.getItem('portfolio_action_exclusion_rules');
+        if (rules)    setActionRules(JSON.parse(rules));
+        if (excludes) setActionExcludes(JSON.parse(excludes));
+      } catch {}
+      setSettingsLoading(false);
+      return;
+    }
     fetch('/api/sa-detail/action-settings')
       .then(r => r.json())
       .then(d => {
