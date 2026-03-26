@@ -5,6 +5,14 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { MultiSelectDropdown } from './MultiSelectDropdown';
 import { filterBtnStyle } from '@/lib/buttonStyles';
 
+// ─── 키워드 매칭 모드 ─────────────────────────────────────────────────────────
+export type KwMode = 'contain' | 'exact' | 'exclude';
+const KW_MODE_OPTIONS: { key: KwMode; label: string }[] = [
+  { key: 'contain', label: '포함' },
+  { key: 'exact',   label: '일치' },
+  { key: 'exclude', label: '제외' },
+];
+
 // ─── URL params ↔ filter 변환 헬퍼 ───────────────────────────────────────────
 export function parseFilterFromParams(sp: URLSearchParams) {
   return {
@@ -13,6 +21,7 @@ export function parseFilterFromParams(sp: URLSearchParams) {
     group:    sp.get('group')    ? sp.get('group')!.split(',').filter(Boolean)    : [] as string[],
     keywords: sp.get('keywords') ? sp.get('keywords')!.split(',').filter(Boolean) : [] as string[],
     topN:     sp.get('topN')     ? sp.get('topN')!.split(',').map(Number).filter(n => !isNaN(n)) : [] as number[],
+    kwMode:   (sp.get('kwMode') ?? 'contain') as KwMode,
   };
 }
 
@@ -22,9 +31,29 @@ const TOP_N_OPTIONS = [
   { label: 'Top 21~30', value: 21 },
 ];
 
+// ─── 모드별 태그 색상 ─────────────────────────────────────────────────────────
+function kwTagStyle(mode: KwMode): React.CSSProperties {
+  if (mode === 'exclude') return {
+    backgroundColor: 'color-mix(in srgb, var(--color-delta-neg) 12%, transparent)',
+    border:          '1px solid color-mix(in srgb, var(--color-delta-neg) 50%, transparent)',
+    color:           'var(--color-delta-neg)',
+  };
+  if (mode === 'exact') return {
+    backgroundColor: 'color-mix(in srgb, var(--color-delta-pos) 12%, transparent)',
+    border:          '1px solid color-mix(in srgb, var(--color-delta-pos) 50%, transparent)',
+    color:           'var(--color-delta-pos)',
+  };
+  // contain (기본)
+  return {
+    backgroundColor: 'color-mix(in srgb, var(--color-accent) 15%, transparent)',
+    border:          '1px solid var(--color-accent)',
+    color:           'var(--color-accent)',
+  };
+}
+
 // ─── SA 헤더 필터 (DashboardLayout Row 3 전용) ────────────────────────────────
 export function SAHeaderFilter() {
-  const router      = useRouter();
+  const router       = useRouter();
   const searchParams = useSearchParams();
 
   const filter = parseFilterFromParams(searchParams);
@@ -48,6 +77,14 @@ export function SAHeaderFilter() {
     router.push(`/sa-detail?${params.toString()}`);
   };
 
+  // kwMode 단독 변경 (string 값)
+  const setKwMode = (mode: KwMode) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (mode === 'contain') params.delete('kwMode');
+    else params.set('kwMode', mode);
+    router.push(`/sa-detail?${params.toString()}`);
+  };
+
   // 매체 로드
   useEffect(() => {
     fetch('/api/sa-detail?type=options&subtype=media')
@@ -56,7 +93,6 @@ export function SAHeaderFilter() {
         if (d.error) throw new Error(d.error);
         const media: string[] = d.media ?? [];
         setMediaOpts(media);
-        // 최초 진입 시 전체 선택
         if (!searchParams.get('media') && media.length > 0) {
           updateParams({ media, campaign: [], group: [] });
         }
@@ -116,15 +152,17 @@ export function SAHeaderFilter() {
     updateParams({ topN: next.map(String) });
   };
 
+  const tagStyle = kwTagStyle(filter.kwMode);
+
   return (
     <div style={{
-      display:     'flex',
-      flexWrap:    'wrap',
-      alignItems:  'center',
-      gap:         'var(--space-2)',
-      padding:     'var(--space-2) 0',
-      maxWidth:    1600,
-      margin:      '0 auto',
+      display:    'flex',
+      flexWrap:   'wrap',
+      alignItems: 'center',
+      gap:        'var(--space-2)',
+      padding:    'var(--space-2) 0',
+      maxWidth:   1600,
+      margin:     '0 auto',
     }}>
       {mediaError && (
         <span style={{ fontSize: 'var(--font-small)', color: 'var(--color-error)' }}>
@@ -171,18 +209,11 @@ export function SAHeaderFilter() {
         <span style={{ fontSize: 'var(--font-small)', fontWeight: 700, color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
           Top N
         </span>
-        <button
-          onClick={() => updateParams({ topN: [] })}
-          style={filterBtnStyle(filter.topN.length === 0)}
-        >
+        <button onClick={() => updateParams({ topN: [] })} style={filterBtnStyle(filter.topN.length === 0)}>
           All
         </button>
         {TOP_N_OPTIONS.map(opt => (
-          <button
-            key={opt.value}
-            onClick={() => toggleTopN(opt.value)}
-            style={filterBtnStyle(filter.topN.includes(opt.value))}
-          >
+          <button key={opt.value} onClick={() => toggleTopN(opt.value)} style={filterBtnStyle(filter.topN.includes(opt.value))}>
             {opt.label}
           </button>
         ))}
@@ -190,24 +221,50 @@ export function SAHeaderFilter() {
 
       <div style={{ width: 1, height: 20, backgroundColor: 'var(--color-border-subtle)' }} />
 
-      {/* 키워드 태그 + 검색 */}
+      {/* 키워드 매칭 모드 + 검색 */}
       <div
         ref={kwRef}
-        style={{ position: 'relative', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-1)', flex: 1, minWidth: 180 }}
+        style={{ position: 'relative', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-1)', flex: 1, minWidth: 280 }}
       >
+        {/* 모드 선택 버튼 */}
+        <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+          {KW_MODE_OPTIONS.map(opt => (
+            <button
+              key={opt.key}
+              onClick={() => setKwMode(opt.key)}
+              style={{
+                padding: '2px 8px',
+                borderRadius: 4,
+                fontSize: 'var(--font-small)',
+                fontWeight: 600,
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+                backgroundColor: filter.kwMode === opt.key
+                  ? (opt.key === 'exclude' ? 'var(--color-delta-neg)'
+                    : opt.key === 'exact'  ? 'var(--color-delta-pos)'
+                    : 'var(--color-accent)')
+                  : 'transparent',
+                color: filter.kwMode === opt.key ? '#fff' : 'var(--color-text-secondary)',
+              }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        {/* 등록된 키워드 태그 */}
         {filter.keywords.map(kw => (
           <span key={kw} style={{
-            display:         'inline-flex',
-            alignItems:      'center',
-            gap:             'var(--space-1)',
-            padding:         '2px var(--space-2)',
-            borderRadius:    'var(--radius-full)',
-            backgroundColor: 'color-mix(in srgb, var(--color-accent) 15%, transparent)',
-            border:          '1px solid var(--color-accent)',
-            color:           'var(--color-accent)',
-            fontSize:        'var(--font-small)',
-            fontWeight:      600,
-            whiteSpace:      'nowrap',
+            display:      'inline-flex',
+            alignItems:   'center',
+            gap:          'var(--space-1)',
+            padding:      '2px var(--space-2)',
+            borderRadius: 'var(--radius-full)',
+            fontSize:     'var(--font-small)',
+            fontWeight:   600,
+            whiteSpace:   'nowrap',
+            ...tagStyle,
           }}>
             {kw}
             <button
@@ -217,6 +274,7 @@ export function SAHeaderFilter() {
           </span>
         ))}
 
+        {/* 키워드 입력 */}
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
           <span style={{ position: 'absolute', left: 'var(--space-2)', color: 'var(--color-text-muted)', fontSize: 'var(--font-small)', pointerEvents: 'none' }}>🔍</span>
           <input

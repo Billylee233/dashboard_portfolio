@@ -122,8 +122,18 @@ export function KeywordExplorer({ rows, dayCount, loading, rules, avgCpa, avgCvr
   const [customIncludes,  setCustomIncludes]   = useState<string[]>([]);
   const [customInput,     setCustomInput]       = useState('');
 
-  // BigQuery에서 커스텀 포함어 로드
+  // 커스텀 포함어 로드 (포트폴리오: localStorage, 운영: BigQuery)
   useEffect(() => {
+    if (IS_PORTFOLIO_CLIENT) {
+      try {
+        const saved: string[] = JSON.parse(localStorage.getItem('portfolio_explorer_includes') ?? '[]');
+        if (saved.length) {
+          setCustomIncludes(saved);
+          setCheckedIncludes(prev => [...new Set([...prev, ...saved])]);
+        }
+      } catch {}
+      return;
+    }
     fetch('/api/sa-detail/action-settings')
       .then(r => r.json())
       .then(d => {
@@ -136,8 +146,12 @@ export function KeywordExplorer({ rows, dayCount, loading, rules, avgCpa, avgCvr
       .catch(() => {});
   }, []);
 
-  // BigQuery에 커스텀 포함어 저장
+  // 커스텀 포함어 저장 (포트폴리오: localStorage, 운영: BigQuery)
   const saveCustomIncludes = useCallback(async (list: string[]) => {
+    if (IS_PORTFOLIO_CLIENT) {
+      try { localStorage.setItem('portfolio_explorer_includes', JSON.stringify(list)); } catch {}
+      return;
+    }
     try {
       await fetch('/api/sa-detail/action-settings', {
         method: 'POST',

@@ -149,12 +149,25 @@ function DailySection({ trendData, trendLoading, trendStart, trendEnd }: {
 }
 
 // ─── 메인 페이지 내부 ─────────────────────────────────────────────────────────
+const IS_PORTFOLIO_CLIENT = process.env.NEXT_PUBLIC_PORTFOLIO_MODE === 'true';
+const LS_KEY = 'portfolio_sa_keywords';
+
 function SADetailContent() {
   const searchParams = useSearchParams();
   const { selectedRange, compareRange, dateReady } = useDashboard();
 
-  // URL params에서 필터 읽기
-  const filter = useMemo(() => parseFilterFromParams(searchParams), [searchParams.toString()]); // eslint-disable-line
+  // 포트폴리오 모드: 키워드를 localStorage에서 관리 (URL 노출 방지)
+  const [localKeywords, setLocalKeywords] = useState<string[]>(() => {
+    if (!IS_PORTFOLIO_CLIENT) return [];
+    try { return JSON.parse(localStorage.getItem(LS_KEY) ?? '[]'); } catch { return []; }
+  });
+
+  // URL params에서 필터 읽기 (keywords는 포트폴리오에서 localKeywords로 오버라이드)
+  const filter = useMemo(() => {
+    const f = parseFilterFromParams(searchParams);
+    if (IS_PORTFOLIO_CLIENT) f.keywords = localKeywords;
+    return f;
+  }, [searchParams.toString(), localKeywords]); // eslint-disable-line
 
   // 단일일 7일 확장 — overview-detail과 동일
   const isSingle   = selectedRange.start === selectedRange.end;
@@ -181,6 +194,7 @@ function SADetailContent() {
     if (filter.group.length)    p.group    = filter.group.join(',');
     if (filter.keywords.length) p.keywords = filter.keywords.join(',');
     if (filter.topN.length)     p.topN     = filter.topN.join(',');
+    if (filter.kwMode && filter.kwMode !== 'contain') p.kwMode = filter.kwMode;
     return p;
   }, [filter]);
 
@@ -207,6 +221,16 @@ function SADetailContent() {
     } catch (e: any) { console.error('[SA sel]', e); }
     finally { setSelLoading(false); }
   }, [dateReady, selectedRange, compareRange, filterParams]);
+
+  // 포트폴리오 모드: URL keywords 파라미터 → localKeywords 동기화 (SAFilterBar에서 추가/삭제 시)
+  useEffect(() => {
+    if (!IS_PORTFOLIO_CLIENT) return;
+    const urlKw = searchParams.get('keywords') ? searchParams.get('keywords')!.split(',').filter(Boolean) : [];
+    if (urlKw.length > 0) {
+      setLocalKeywords(urlKw);
+      try { localStorage.setItem(LS_KEY, JSON.stringify(urlKw)); } catch {}
+    }
+  }, [searchParams.get('keywords')]); // eslint-disable-line
 
   useEffect(() => { fetchTrend(); }, [fetchTrend]);
   useEffect(() => { fetchSel();   }, [fetchSel]);

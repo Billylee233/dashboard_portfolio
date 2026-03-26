@@ -1,5 +1,8 @@
 'use client';
 
+const IS_PORTFOLIO_CLIENT = process.env.NEXT_PUBLIC_PORTFOLIO_MODE === 'true';
+const LS_PREFIX = 'portfolio_action_';
+
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { fmt } from '@/lib/calculations';
 import type { SAKeywordMetrics } from '@/lib/types';
@@ -137,14 +140,29 @@ function evalExclude(rules: ExcludeRule[], metrics: any, dayCount: number): bool
   });
 }
 
-// ─── BigQuery 설정 저장/로드 ──────────────────────────────────────────────────
+// ─── 설정 저장/로드 (포트폴리오: localStorage, 운영: BigQuery) ──────────────
 async function loadSettings() {
+  if (IS_PORTFOLIO_CLIENT) {
+    try {
+      const keys = ['action_rules', 'action_excludes', 'action_settings'];
+      const result: Record<string, any> = {};
+      keys.forEach(k => {
+        const v = localStorage.getItem(LS_PREFIX + k);
+        if (v) try { result[k] = JSON.parse(v); } catch {}
+      });
+      return result;
+    } catch { return {}; }
+  }
   const res = await fetch('/api/sa-detail/action-settings');
   const data = await res.json();
   return data.settings ?? {};
 }
 
 async function saveSettings(key: string, value: any) {
+  if (IS_PORTFOLIO_CLIENT) {
+    try { localStorage.setItem(LS_PREFIX + key, JSON.stringify(value)); } catch {}
+    return;
+  }
   await fetch('/api/sa-detail/action-settings', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

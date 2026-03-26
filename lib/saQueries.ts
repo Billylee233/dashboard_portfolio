@@ -36,6 +36,7 @@ export interface SAFilter {
   campaign?: string[];
   group?:    string[];
   keywords?: string[];   // 키워드 검색 태그
+  kwMode?:   'contain' | 'exact' | 'exclude';  // 키워드 매칭 모드
   topN?:     number[];   // 1=Top1~10, 11=Top11~20, 21=Top21~30 (선택기간 APP 기준 랭킹)
 }
 
@@ -68,12 +69,29 @@ function buildWhere(range: SADateRange, filter: SAFilter, params: Record<string,
   }
 
   if (filter.keywords?.length) {
-    // OR 조건으로 keyword LIKE 검색
-    const kwClauses = filter.keywords.map((kw, i) => {
-      params[`saKw${i}`] = `%${kw}%`;
-      return `keyword LIKE @saKw${i}`;
-    });
-    clauses.push(`(${kwClauses.join(' OR ')})`);
+    const mode = filter.kwMode ?? 'contain';
+    if (mode === 'exact') {
+      // 일치: keyword = kw1 OR keyword = kw2 ...
+      const kwClauses = filter.keywords.map((kw, i) => {
+        params[`saKw${i}`] = kw;
+        return `keyword = @saKw${i}`;
+      });
+      clauses.push(`(${kwClauses.join(' OR ')})`);
+    } else if (mode === 'exclude') {
+      // 제외: keyword NOT LIKE kw1 AND keyword NOT LIKE kw2 ...
+      const kwClauses = filter.keywords.map((kw, i) => {
+        params[`saKw${i}`] = `%${kw}%`;
+        return `keyword NOT LIKE @saKw${i}`;
+      });
+      clauses.push(`(${kwClauses.join(' AND ')})`);
+    } else {
+      // 포함 (기본): keyword LIKE kw1 OR keyword LIKE kw2 ...
+      const kwClauses = filter.keywords.map((kw, i) => {
+        params[`saKw${i}`] = `%${kw}%`;
+        return `keyword LIKE @saKw${i}`;
+      });
+      clauses.push(`(${kwClauses.join(' OR ')})`);
+    }
   }
 
   if (filter.topN?.length) {

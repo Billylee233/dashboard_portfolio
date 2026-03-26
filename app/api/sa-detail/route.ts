@@ -21,7 +21,7 @@ import {
   maskChannel, maskCampaign, maskGroup, maskKeyword,
   transformMetrics,
   buildReverseChannelMap, reverseChannel,
-  clampPortfolioDate, getPortfolioDateRange,
+  clampPortfolioDate, getPortfolioDateRange, PORTFOLIO_SA_CHANNELS,
 } from '@/lib/portfolio/transform';
 
 export const dynamic = 'force-dynamic';
@@ -45,6 +45,7 @@ function buildFilter(sp: URLSearchParams): SAFilter {
     group:    parseMulti(sp.get('group')),
     keywords: parseMulti(sp.get('keywords')),
     topN:     parseIntArray(sp.get('topN')),
+    kwMode:   (sp.get('kwMode') ?? 'contain') as 'contain' | 'exact' | 'exclude',
   };
 }
 
@@ -60,7 +61,10 @@ export async function GET(req: NextRequest) {
       const campRaw  = parseMulti(sp.get('campaign'));
 
       if (subtype === 'media') {
-        const media = await querySADistinctMedia();
+        const allMedia = await querySADistinctMedia();
+        const media = IS_PORTFOLIO
+          ? allMedia.filter(m => (PORTFOLIO_SA_CHANNELS as readonly string[]).includes(m))
+          : allMedia;
         return NextResponse.json({ media: IS_PORTFOLIO ? media.map(maskChannel) : media });
       }
       if (subtype === 'campaign') {

@@ -14,6 +14,11 @@ export const IS_PORTFOLIO = process.env.PORTFOLIO_MODE === 'true';
 // ─────────────────────────────────────────────────────────────
 // 포트폴리오 노출 제한: 채널 화이트리스트
 // ─────────────────────────────────────────────────────────────
+// SA Detail 전용 화이트리스트 (sa_merged_table 기준)
+export const PORTFOLIO_SA_CHANNELS = [
+  'SA_Google',
+] as const;
+
 export const PORTFOLIO_CHANNELS = [
   'Carrot Market',
   'Instagram',
