@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { getChColor } from '@/lib/channelColors';
 import { useChannels } from '@/lib/useChannels';
+import { useDashboard } from '@/components/layout/DashboardLayout';
 import { useTheme } from '@/components/ui/ThemeEditor';
 import { isLightColor } from '@/lib/theme';
 import { useSearchParams } from 'next/navigation';
