@@ -879,6 +879,7 @@ function ABTestPageInner() {
   const filteredTests = tests.filter(t => {
     const jt = (t.job_type ?? '') as JobType;
     if (!jt) return true;
+    if (!(JOB_TYPES as readonly string[]).includes(jt)) return true; // 레거시 직무명 항상 표시
     return activeJobTypes.has(jt);
   });
 
