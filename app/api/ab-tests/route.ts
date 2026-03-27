@@ -95,14 +95,13 @@ export async function POST(req: NextRequest) {
     const rowsWithMetrics = await Promise.all(
       rows.map(async (row: any) => {
         if (!row.media || !row.campaign) return { ...row, metrics: null };
+        // try 밖에서 선언 → catch에서도 접근 가능
+        let realMedia = IS_PORTFOLIO ? reverseChannel(row.media, chRevMap) : row.media;
+        let realCamp  = row.campaign;
+        const realGroup = row.ad_group ?? '';
+        const realAd    = row.ad ?? '';
         try {
-          let realMedia = row.media;
-          let realCamp  = row.campaign;
-          const realGroup = row.ad_group ?? '';
-          const realAd    = row.ad ?? '';
-
           if (IS_PORTFOLIO) {
-            realMedia = reverseChannel(row.media, chRevMap);
             if (!campRevMaps.has(realMedia)) {
               const P = process.env.NEXT_PUBLIC_BQ_PROJECT_ID!;
               const D = process.env.NEXT_PUBLIC_BQ_DATASET!;
@@ -124,8 +123,18 @@ export async function POST(req: NextRequest) {
             { start: row.dateRange.start, end: row.dateRange.end },
             realMedia, realCamp, realGroup, realAd
           );
-          return { ...row, metrics: data ? calcMetrics(data) : null };
-        } catch { return { ...row, metrics: null }; }
+          // BQ에는 실제 채널명으로 저장 (GET 시 maskTestRows가 다시 마스킹)
+          const savedRow = IS_PORTFOLIO
+            ? { ...row, media: realMedia, campaign: realCamp, ad_group: realGroup, ad: realAd }
+            : row;
+          return { ...savedRow, metrics: data ? calcMetrics(data) : null };
+        } catch {
+          // catch에서도 실제 채널명으로 저장
+          const savedRow = IS_PORTFOLIO
+            ? { ...row, media: realMedia, campaign: realCamp, ad_group: realGroup, ad: realAd }
+            : row;
+          return { ...savedRow, metrics: null };
+        }
       })
     );
 
@@ -240,7 +249,13 @@ export async function PATCH(req: NextRequest) {
           }
           const data = await queryAdPerformance({ start: row.dateRange.start, end: row.dateRange.end }, realMedia, realCamp, row.ad_group || '', row.ad || '');
           return { ...row, metrics: data ? calcMetrics(data) : null };
-        } catch { return { ...row, metrics: null }; }
+        } catch { 
+          // catch에서도 실제 채널명으로 저장
+          const savedRow = IS_PORTFOLIO
+            ? { ...row, media: realMedia, campaign: realCamp, ad_group: realGroup, ad: realAd }
+            : row;
+          return { ...savedRow, metrics: null };
+        }
       })
     );
 
