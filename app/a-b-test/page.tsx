@@ -435,22 +435,17 @@ function ABCalendar({ tests, onTestClick }: { tests: ABTest[]; onTestClick: (id:
   const toggleJobType = (jt: JobType) => {
     setActiveJobTypes(prev => {
       const next = new Set(prev);
-      if (next.has(jt)) {
-        next.delete(jt);
-        // 일용직 상태에서 Helper 비활성화 → 전체로
-        if (jobGroupFilter==='일용직') { setJobGroupFilter('전체'); return new Set(JOB_TYPES); }
-        // 전체 상태에서 Helper 비활성화 → 계약직으로
-        if (jobGroupFilter==='전체' && jt==='Helper') { setJobGroupFilter('계약직'); next.add('HL'); next.add('MCL'); next.add('FA'); next.add('FO'); next.add('CPF'); next.add('S-FA'); next.delete('Helper'); return next; }
-      } else {
-        next.add(jt);
-        // 계약직 상태에서 Helper 활성화 → 전체로
-        if (jobGroupFilter==='계약직' && jt==='Helper') { setJobGroupFilter('전체'); return new Set(JOB_TYPES); }
-      }
-      // 그룹 레이블 자동 결정
+      if (next.has(jt)) { next.delete(jt); } else { next.add(jt); }
+      // 그룹 레이블 자동 결정: JOB_GROUP 역매핑
       const activeArr = [...next];
-      if (activeArr.length===JOB_TYPES.length) setJobGroupFilter('전체');
-      else if (activeArr.length===1&&activeArr[0]==='Helper') setJobGroupFilter('일용직');
-      else if (!activeArr.includes('Helper')&&activeArr.length===JOB_TYPES.length-1) setJobGroupFilter('계약직');
+      const matched = Object.entries(JOB_GROUP).find(([g, types]) =>
+        g !== '전체' &&
+        types.length === activeArr.length &&
+        (types as string[]).every(t => next.has(t as JobType))
+      );
+      if (activeArr.length === JOB_TYPES.length) setJobGroupFilter('전체');
+      else if (matched) setJobGroupFilter(matched[0]);
+      else setJobGroupFilter('전체');
       return next;
     });
   };
@@ -860,18 +855,17 @@ function ABTestPageInner() {
   const toggleJobType = (jt: JobType) => {
     setActiveJobTypes(prev => {
       const next = new Set(prev);
-      if (next.has(jt)) {
-        next.delete(jt);
-        if (jobGroupFilter==='일용직') { setJobGroupFilter('전체'); return new Set(JOB_TYPES); }
-        if (jobGroupFilter==='전체' && jt==='Helper') { setJobGroupFilter('계약직'); return new Set(JOB_TYPES.filter(j=>j!=='Helper')); }
-      } else {
-        next.add(jt);
-        if (jobGroupFilter==='계약직' && jt==='Helper') { setJobGroupFilter('전체'); return new Set(JOB_TYPES); }
-      }
+      if (next.has(jt)) { next.delete(jt); } else { next.add(jt); }
+      // 그룹 레이블 자동 결정: JOB_GROUP 역매핑
       const activeArr = [...next];
-      if (activeArr.length===JOB_TYPES.length) setJobGroupFilter('전체');
-      else if (activeArr.length===1&&activeArr[0]==='Helper') setJobGroupFilter('일용직');
-      else if (!activeArr.includes('Helper')&&activeArr.length===JOB_TYPES.length-1) setJobGroupFilter('계약직');
+      const matched = Object.entries(JOB_GROUP).find(([g, types]) =>
+        g !== '전체' &&
+        types.length === activeArr.length &&
+        (types as string[]).every(t => next.has(t as JobType))
+      );
+      if (activeArr.length === JOB_TYPES.length) setJobGroupFilter('전체');
+      else if (matched) setJobGroupFilter(matched[0]);
+      else setJobGroupFilter('전체');
       return next;
     });
   };

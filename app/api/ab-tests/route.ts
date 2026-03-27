@@ -216,9 +216,9 @@ export async function POST(req: NextRequest) {
       const bq = getBQClient();
       await bq.query({
         query: `INSERT INTO ${AB_TABLE()} (test_id, test_name, description, test_date_start, test_date_end, test_rows, ai_comment, job_type, created_at, updated_at)
-                VALUES (@test_id, @test_name, @description, @test_date_start, @test_date_end, PARSE_JSON(@test_rows), @ai_comment, @job_type, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP())`,
-        params: { test_id, test_name, description: description ?? '', test_date_start: (test_date_start || null), test_date_end: (test_date_end || null), test_rows: JSON.stringify(rowsWithMetrics), ai_comment, job_type: job_type ?? null },
-        types: { test_date_start: 'DATE', test_date_end: 'DATE', ai_comment: 'STRING', job_type: 'STRING' },
+                VALUES (@test_id, @test_name, @description, SAFE_CAST(@test_date_start AS DATE), SAFE_CAST(@test_date_end AS DATE), PARSE_JSON(@test_rows), @ai_comment, @job_type, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP())`,
+        params: { test_id, test_name, description: description ?? '', test_date_start: test_date_start || '', test_date_end: test_date_end || '', test_rows: JSON.stringify(rowsWithMetrics), ai_comment, job_type: job_type ?? null },
+        types: { ai_comment: 'STRING', job_type: 'STRING' },
         useLegacySql: false,
       });
     } else {
@@ -348,8 +348,8 @@ export async function PATCH(req: NextRequest) {
       const params: any = { test_id, test_rows: JSON.stringify(rowsWithMetrics) };
       if (test_name       !== undefined) { sets.push('test_name = @test_name');           params.test_name       = test_name; }
       if (description     !== undefined) { sets.push('description = @description');       params.description     = description; }
-      if (test_date_start !== undefined) { sets.push('test_date_start = @test_date_start'); params.test_date_start = (test_date_start || null); }
-      if (test_date_end   !== undefined) { sets.push('test_date_end = @test_date_end');   params.test_date_end   = (test_date_end || null); }
+      if (test_date_start !== undefined) { sets.push('test_date_start = SAFE_CAST(@test_date_start AS DATE)'); params.test_date_start = test_date_start || ''; }
+      if (test_date_end   !== undefined) { sets.push('test_date_end = SAFE_CAST(@test_date_end AS DATE)');   params.test_date_end   = test_date_end   || ''; }
       if (job_type        !== undefined) { sets.push('job_type = @job_type');             params.job_type        = job_type; }
       await getBQClient().query({ query: `UPDATE ${AB_TABLE()} SET ${sets.join(', ')} WHERE test_id = @test_id`, params, useLegacySql: false });
     } else {
