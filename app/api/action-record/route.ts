@@ -1,7 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { getBQClient } from '@/lib/bigquery';
-import { IS_PORTFOLIO, ptable, maskChannel } from '@/lib/portfolio/transform';
+import { IS_PORTFOLIO, ptable, maskChannel, buildReverseChannelMap, reverseChannel } from '@/lib/portfolio/transform';
+import { queryDistinctMedia } from '@/lib/bigquery';
 
 const PROJECT = process.env.NEXT_PUBLIC_BQ_PROJECT_ID!;
 const DATASET  = process.env.NEXT_PUBLIC_BQ_DATASET!;
@@ -81,10 +82,17 @@ export async function POST(req: Request) {
     const rows: { channel: string; date: string; type: string; description: string; job_type?: string }[] = body;
     if (!rows.length) return NextResponse.json({ ok: true });
     await ensureTable();
+    // 포트폴리오: 마스킹된 채널명 → 실제 채널명 역변환
+    let chRevMap = new Map<string, string>();
+    if (IS_PORTFOLIO) {
+      const realChs = await queryDistinctMedia();
+      chRevMap = buildReverseChannelMap(realChs);
+    }
     const bq = getBQClient();
-    const values = rows.map(r =>
-      `(GENERATE_UUID(), '${esc(r.channel)}', DATE('${r.date}'), '${esc(r.type??'')}', '${esc(r.description)}', '${esc(r.job_type??'')}', CURRENT_TIMESTAMP())`
-    ).join(',\n');
+    const values = rows.map(r => {
+      const realCh = IS_PORTFOLIO ? reverseChannel(r.channel, chRevMap) : r.channel;
+      return `(GENERATE_UUID(), '${esc(realCh)}', DATE('${r.date}'), '${esc(r.type??'')}', '${esc(r.description)}', '${esc(r.job_type??'')}', CURRENT_TIMESTAMP())`;
+    }).join(',\n');
     await bq.query({ query: `INSERT INTO ${TABLE()} (id, channel, date, type, description, job_type, created_at) VALUES ${values}`, useLegacySql: false });
     return NextResponse.json({ ok: true });
   } catch (e: any) {
@@ -109,8 +117,15 @@ export async function PATCH(req: Request) {
     const { id, channel, date, type, description, job_type } = await req.json();
     if (!id) return NextResponse.json({ error: 'id 필수' }, { status: 400 });
     const bq = getBQClient();
+    // 포트폴리오: 마스킹된 채널명 → 실제 채널명 역변환
+    let realCh = channel;
+    if (IS_PORTFOLIO && channel) {
+      const realChs = await queryDistinctMedia();
+      const revMap = buildReverseChannelMap(realChs);
+      realCh = reverseChannel(channel, revMap);
+    }
     const sets: string[] = [];
-    if (channel)              sets.push(`channel = '${esc(channel)}'`);
+    if (channel)              sets.push(`channel = '${esc(realCh)}'`);
     if (date)                 sets.push(`date = DATE('${date}')`);
     if (type !== undefined)   sets.push(`type = '${esc(type)}'`);
     if (description)          sets.push(`description = '${esc(description)}'`);

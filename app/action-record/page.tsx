@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { getChColor } from '@/lib/channelColors';
+import { useChannels } from '@/lib/useChannels';
 import { useTheme } from '@/components/ui/ThemeEditor';
 import { isLightColor } from '@/lib/theme';
 import { useSearchParams } from 'next/navigation';
@@ -9,7 +10,7 @@ import { thStyle, tdStyle } from '@/lib/tableStyles';
 
 const IS_PORTFOLIO_CLIENT = process.env.NEXT_PUBLIC_PORTFOLIO_MODE === 'true';
 const JOB_TYPES_AR = IS_PORTFOLIO_CLIENT
-  ? ['직무1','직무2','직무3','직무4','직무5','직무6'] as const
+  ? ['프로젝트1','프로젝트2','프로젝트3','프로젝트4','프로젝트5','프로젝트6'] as const
   : ['Helper','HL','MCL','FA','FO','CPF','S-FA'] as const;
 function hexToRgbAR(hex: string) {
   const h = (hex || '').replace('#', '');
@@ -21,15 +22,10 @@ const JOB_GROUP_AR: Record<string, JobTypeAR[]> = {
   '전체': JOB_TYPES_AR as unknown as JobTypeAR[],
   '일용직': ['Helper'],
   '계약직': ['HL','MCL','FA','FO','CPF','S-FA'],
-  '그룹A': ['직무1'],
-  '그룹B': ['직무2','직무3','직무4','직무5','직무6'],
+  '그룹A': ['프로젝트1'],
+  '그룹B': ['프로젝트2','프로젝트3','프로젝트4','프로젝트5','프로젝트6'],
 };
 
-const CHANNELS = [
-  'Brand_Search_Naver','SA_Carrot','SA_Daum','SA_Google','SA_Naver',
-  'Kakao_Tokchannel','Carrot Market','Criteo','Demandgen',
-  'Google_pmax','Instagram','Tiktok','toss',
-];
 
 const DEFAULT_TYPES = [
   { name:'예산',        description:'일예산, 월예산 증감' },
@@ -220,6 +216,9 @@ function makeId(){ return 'r_'+Math.random().toString(36).slice(2); }
 function todayStr(){ return new Date().toISOString().slice(0,10); }
 
 function ActionRecordPageInner() {
+  const { selectedRange, compareRange } = useDashboard();
+  const chRange = { selStart: selectedRange.start, selEnd: selectedRange.end, cmpStart: compareRange.start, cmpEnd: compareRange.end };
+  const { channels: channelList } = useChannels(chRange);
   const [records, setRecords] = useState<ActionRecord[]>([]);
   const [types, setTypes] = useState<ActionType[]>([]);
   const [saving, setSaving] = useState(false);
@@ -236,24 +235,21 @@ function ActionRecordPageInner() {
   const handleJobGroupClickAR = (g: string) => {
     setJobGroupFilterAR(g);
     if (g==='전체') setActiveJobTypesAR(new Set(JOB_TYPES_AR));
-    else if (g==='일용직') setActiveJobTypesAR(new Set(['Helper']));
-    else setActiveJobTypesAR(new Set(JOB_TYPES_AR.filter(j=>j!=='Helper')));
+    else setActiveJobTypesAR(new Set(JOB_GROUP_AR[g] ?? JOB_TYPES_AR));
   };
   const toggleJobTypeAR = (jt: JobTypeAR) => {
     setActiveJobTypesAR(prev => {
       const next = new Set(prev);
-      if (next.has(jt)) {
-        next.delete(jt);
-        if (jobGroupFilter==='일용직') { setJobGroupFilterAR('전체'); return new Set(JOB_TYPES_AR); }
-        if (jobGroupFilter==='전체' && jt==='Helper') { setJobGroupFilterAR('계약직'); return new Set(JOB_TYPES_AR.filter(j=>j!=='Helper')); }
-      } else {
-        next.add(jt);
-        if (jobGroupFilter==='계약직' && jt==='Helper') { setJobGroupFilterAR('전체'); return new Set(JOB_TYPES_AR); }
-      }
+      if (next.has(jt)) { next.delete(jt); } else { next.add(jt); }
       const arr = [...next];
-      if (arr.length===JOB_TYPES_AR.length) setJobGroupFilterAR('전체');
-      else if (arr.length===1&&arr[0]==='Helper') setJobGroupFilterAR('일용직');
-      else if (!arr.includes('Helper')&&arr.length===JOB_TYPES_AR.length-1) setJobGroupFilterAR('계약직');
+      const matched = Object.entries(JOB_GROUP_AR).find(([g, types]) =>
+        g !== '전체' &&
+        types.length === arr.length &&
+        (types as string[]).every(t => next.has(t as JobTypeAR))
+      );
+      if (arr.length === JOB_TYPES_AR.length) setJobGroupFilterAR('전체');
+      else if (matched) setJobGroupFilterAR(matched[0]);
+      else setJobGroupFilterAR('전체');
       return next;
     });
   };
@@ -315,7 +311,7 @@ function ActionRecordPageInner() {
     }
   };
 
-  const addNewRow=()=>setNewRows(prev=>[...prev,{id:makeId(),channel:CHANNELS[0],date:todayStr(),type:allTypes[0]?.name??'',description:'',job_type:''}]);
+  const addNewRow=()=>setNewRows(prev=>[...prev,{id:makeId(),channel:channelList[0]??'',date:todayStr(),type:allTypes[0]?.name??'',description:'',job_type:''}]);
   const updateNewRow=(id:string,patch:any)=>setNewRows(prev=>prev.map(r=>r.id===id?{...r,...patch}:r));
   const saveNewRow=async(id:string)=>{
     const row=newRows.find(r=>r.id===id);
@@ -501,7 +497,7 @@ function ActionRecordPageInner() {
               <thead>
                 <tr>
                   <th style={{...thStyle,width:110}}>일자</th>
-                  <th style={{...thStyle,width:110}}>직무</th>
+                  <th style={{...thStyle,width:110}}>프로젝트</th>
                   <th style={{...thStyle,width:160}}>채널</th>
                   <th style={{...thStyle,width:110}}>유형</th>
                   <th style={thStyle}>변경사항</th>
@@ -519,13 +515,13 @@ function ActionRecordPageInner() {
                     </td>
                     <td style={tdStyle}>
                       <select value={row.job_type??''} onChange={e=>updateNewRow(row.id,{job_type:e.target.value})} style={{...selInp,width:'100%'}}>
-                        <option value="">직무</option>
+                        <option value="">프로젝트</option>
                         {JOB_TYPES_AR.map(j=><option key={j} value={j}>{j}</option>)}
                       </select>
                     </td>
                     <td style={tdStyle}>
                       <select value={row.channel} onChange={e=>updateNewRow(row.id,{channel:e.target.value})} style={{...selInp,width:'100%'}}>
-                        {CHANNELS.map(c=><option key={c} value={c}>{c}</option>)}
+                        {channelList.map(c=><option key={c} value={c}>{c}</option>)}
                       </select>
                     </td>
                     <td style={tdStyle}>
@@ -582,13 +578,13 @@ function ActionRecordPageInner() {
                           </td>
                           <td style={tdStyle}>
                             <select value={editData.job_type??''} onChange={e=>setEditData(p=>({...p,job_type:e.target.value}))} style={{...selInp,width:'100%'}}>
-                              <option value="">직무</option>
+                              <option value="">프로젝트</option>
                               {JOB_TYPES_AR.map(j=><option key={j} value={j}>{j}</option>)}
                             </select>
                           </td>
                           <td style={tdStyle}>
                             <select value={editData.channel??''} onChange={e=>setEditData(p=>({...p,channel:e.target.value}))} style={{...selInp,width:'100%'}}>
-                              {CHANNELS.map(ch=><option key={ch} value={ch}>{ch}</option>)}
+                              {channelList.map(ch=><option key={ch} value={ch}>{ch}</option>)}
                             </select>
                           </td>
                           <td style={tdStyle}>
