@@ -446,6 +446,7 @@ function ABCalendar({ tests, onTestClick }: { tests: ABTest[]; onTestClick: (id:
   const jobFilteredTests = tests.filter(t => {
     const jt = (t.job_type ?? '') as JobType;
     if (!jt) return true; // 직무 없는 기존 레코드는 항상 표시
+    if (!(JOB_TYPES as readonly string[]).includes(jt)) return true; // 레거시 직무명도 항상 표시
     return activeJobTypes.has(jt);
   });
   // 기준군(control) 채널만 필터 표시
