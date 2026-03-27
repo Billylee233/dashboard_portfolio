@@ -222,6 +222,9 @@ function TestCard({ test, onDelete, onRefresh, expanded: extExpanded, onExpand }
   test: ABTest; onDelete: ()=>void; onRefresh: ()=>void;
   expanded?: boolean; onExpand?: ()=>void;
 }) {
+  const { selectedRange, compareRange } = useDashboard();
+  const chRange = { selStart: selectedRange.start, selEnd: selectedRange.end, cmpStart: compareRange.start, cmpEnd: compareRange.end };
+  const { channels } = useChannels(chRange);
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editRows, setEditRows] = useState<TestRow[]>([]);
