@@ -418,7 +418,7 @@ function ABCalendar({ tests, onTestClick }: { tests: ABTest[]; onTestClick: (id:
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [selectedChannels, setSelectedChannels] = useState<Set<string>>(new Set());
   // 직무 필터: jobGroupFilter = '전체'|'일용직'|'계약직', activeJobTypes = 활성 직무 Set
-  const [jobGroupFilter, setJobGroupFilter] = useState<'전체'|'일용직'|'계약직'>('전체');
+  const [jobGroupFilter, setJobGroupFilter] = useState<string>('전체');
   const [activeJobTypes, setActiveJobTypes] = useState<Set<JobType>>(new Set(JOB_TYPES));
   const theme = useTheme();
   const isDark = !isLightColor(theme.colorBg);
@@ -427,7 +427,7 @@ function ABCalendar({ tests, onTestClick }: { tests: ABTest[]; onTestClick: (id:
   const nextMonth = () => { if(viewMonth===11){setViewYear(y=>y+1);setViewMonth(0);}else setViewMonth(m=>m+1); };
 
   // 직무 필터 로직 (수정.11 스펙)
-  const handleJobGroupClick = (g: '전체'|'일용직'|'계약직') => {
+  const handleJobGroupClick = (g: string) => {
     setJobGroupFilter(g);
     if (g==='전체') setActiveJobTypes(new Set(JOB_TYPES));
     else if (g==='일용직') setActiveJobTypes(new Set(['Helper']));
@@ -851,9 +851,9 @@ function ABTestPageInner() {
   const [registerOpen, setRegisterOpen] = useState(false);
 
   // 직무 필터
-  const [jobGroupFilter, setJobGroupFilter] = useState<'전체'|'일용직'|'계약직'>('전체');
+  const [jobGroupFilter, setJobGroupFilter] = useState<string>('전체');
   const [activeJobTypes, setActiveJobTypes] = useState<Set<JobType>>(new Set(JOB_TYPES));
-  const handleJobGroupClick = (g: '전체'|'일용직'|'계약직') => {
+  const handleJobGroupClick = (g: string) => {
     setJobGroupFilter(g);
     if (g==='전체') setActiveJobTypes(new Set(JOB_TYPES));
     else if (g==='일용직') setActiveJobTypes(new Set(['Helper']));
