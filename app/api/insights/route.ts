@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { queryInsights, queryPortfolioMaxDate } from '@/lib/bigquery';
 import { calcMetrics } from '@/lib/calculations';
 import type { DateRange } from '@/lib/types';
-import { IS_PORTFOLIO, maskAd, transformMetrics, clampPortfolioDate, getPortfolioDateRange, portfolioMediaSQL } from '@/lib/portfolio/transform';
+import { IS_PORTFOLIO, maskAd, transformMetrics, clampPortfolioDate, getPortfolioDateRange, portfolioMediaSQL, buildReverseChannelMap, reverseChannel } from '@/lib/portfolio/transform';
+import { queryDistinctMedia } from '@/lib/bigquery';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,9 +23,16 @@ export async function GET(req: NextRequest) {
 
     const start  = cp(searchParams.get('start'))  ?? searchParams.get('start')!;
     const end    = cp(searchParams.get('end'))    ?? searchParams.get('end')!;
-    const media  = searchParams.get('media') || undefined;
+    let   media  = searchParams.get('media') || undefined;
     const type   = searchParams.get('type')   ?? 'combo'; // combo | image | text
     const sortBy = searchParams.get('sortBy') ?? 'score'; // score | cpa | ctr | cvr
+
+    // 포트폴리오: 마스킹된 채널명 → 실제 채널명 역변환
+    if (IS_PORTFOLIO && media) {
+      const realChs = await queryDistinctMedia();
+      const chRevMap = buildReverseChannelMap(realChs);
+      media = reverseChannel(media, chRevMap);
+    }
 
     const range: DateRange = { start, end };
     const raw = await queryInsights(range, media, portfolioMediaSQL());

@@ -2,22 +2,14 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useDashboard } from '@/components/layout/DashboardLayout';
+import { useChannels } from '@/lib/useChannels';
 import { ExportToSheetsButton } from '@/components/ui/ExportButton';
 import { fmt } from '@/lib/calculations';
 import { useTheme } from '@/components/ui/ThemeEditor';
 import type { MetricsRow } from '@/lib/types';
 import EmptyState from '@/components/ui/EmptyState';
 
-const IS_PORTFOLIO_CLIENT = process.env.NEXT_PUBLIC_PORTFOLIO_MODE === 'true';
-const CHANNELS = IS_PORTFOLIO_CLIENT ? [
-  '채널45','채널52','채널88','채널90','채널69',
-  '채널83','채널27','채널90','채널67',
-  '채널42','채널60','채널80','채널83',
-] : [
-  'Brand_Search_Naver','SA_Carrot','SA_Daum','SA_Google','SA_Naver',
-  'Kakao_Tokchannel','Carrot Market','Criteo','Demandgen',
-  'Google_pmax','Instagram','Tiktok','toss',
-];
+
 
 type InsightType = 'combo' | 'image' | 'text';
 type SortBy = 'score' | 'cpa' | 'ctr' | 'cvr';
@@ -134,7 +126,9 @@ function InsightTable({ items, loading, insightType }: { items: InsightItem[]; l
 }
 
 export default function InsightsPage() {
-  const { selectedRange } = useDashboard();
+  const { selectedRange, compareRange } = useDashboard();
+  const chRange = { selStart: selectedRange.start, selEnd: selectedRange.end, cmpStart: compareRange.start, cmpEnd: compareRange.end };
+  const { channels: channelList } = useChannels(chRange);
   const [channel, setChannel] = useState<string>('');
   const [insightType, setInsightType] = useState<InsightType>('combo');
   const [sortBy, setSortBy] = useState<SortBy>('score');
@@ -224,7 +218,7 @@ export default function InsightsPage() {
           style={{ backgroundColor: 'var(--color-surface-1)', border: '1px solid var(--color-accent)', borderRadius: 6, padding: '4px 10px', fontSize: 'var(--font-label)', fontWeight: 700, color: 'var(--color-accent)', cursor: 'pointer', outline: 'none', minHeight: 32 }}
         >
           <option value="">전체 채널</option>
-          {CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
+          {channelList.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
 
         {/* 소재 유형 탭 */}
