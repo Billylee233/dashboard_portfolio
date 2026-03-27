@@ -11,6 +11,7 @@ import type { MetricsRow } from '@/lib/types';
 import EmptyState from '@/components/ui/EmptyState';
 import { useChannels } from '@/lib/useChannels';
 import { useDashboard } from '@/components/layout/DashboardLayout';
+import { useDashboard } from '@/components/layout/DashboardLayout';
 
 const IS_PORTFOLIO_CLIENT = process.env.NEXT_PUBLIC_PORTFOLIO_MODE === 'true';
 const JOB_TYPES = IS_PORTFOLIO_CLIENT
@@ -30,7 +31,6 @@ const JOB_GROUP: Record<string, JobType[]> = {
   '그룹B': ['프로젝트2','프로젝트3','프로젝트4','프로젝트5','프로젝트6'],
 };
 
-// CHANNELS는 useChannels 훅으로 동적 로드
 
 // 대체공휴일 적용 대상 공휴일
 const SUBSTITUTE_ELIGIBLE = new Set([
@@ -146,9 +146,9 @@ function findBestIdx(rows: TestRow[], col: { key: string; invert?: boolean }): n
 }
 
 // ─── DynamicSelect ────────────────────────────────────────────────────────────
-function DynamicSelect({ value, onChange, fetchUrl, placeholder, disabled=false, error=false }: {
+function DynamicSelect({ value, onChange, fetchUrl, placeholder, disabled=false, error=false, title='' }: {
   value: string; onChange: (v: string) => void; fetchUrl: string|null;
-  placeholder: string; disabled?: boolean; error?: boolean;
+  placeholder: string; disabled?: boolean; error?: boolean; title?: string;
 }) {
   const [options, setOptions] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -159,6 +159,7 @@ function DynamicSelect({ value, onChange, fetchUrl, placeholder, disabled=false,
   }, [fetchUrl]);
   return (
     <select value={value} onChange={e => onChange(e.target.value)} disabled={disabled||loading||!fetchUrl}
+      title={title||value||placeholder}
       className={`w-full bg-surface-2 rounded px-2 py-1.5 text-text-secondary focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed ${error ? 'border border-red-500' : 'border border-def focus:border-accent'}`}
       style={{ fontSize: 'var(--font-body)' }}>
       <option value="">{loading ? '로딩...' : placeholder}</option>
@@ -193,26 +194,38 @@ function StatsPanel({ rows }: { rows: TestRow[] }) {
 }
 
 // ─── EditRowForm ──────────────────────────────────────────────────────────────
-function EditRowForm({ row, onUpdate, errorIds, channels = [] }: { row: TestRow; onUpdate: (id:string,patch:Partial<TestRow>)=>void; errorIds:Set<string>; channels?: string[] }) {
+function EditRowForm({ row, onUpdate, onDelete, errorIds, channels, dateRange }: {
+  row: TestRow; onUpdate: (id:string,patch:Partial<TestRow>)=>void; onDelete: (id:string)=>void;
+  errorIds:Set<string>; channels: string[];
+  dateRange: { selStart:string; selEnd:string; cmpStart:string; cmpEnd:string };
+}) {
   const hasError = errorIds.has(row.id);
+  const dq = `&selStart=${dateRange.selStart}&selEnd=${dateRange.selEnd}&cmpStart=${dateRange.cmpStart}&cmpEnd=${dateRange.cmpEnd}`;
   return (
-    <div className={`grid grid-cols-8 gap-1.5 items-end py-1.5 border-b ${hasError?'border-red-500':'border-def'}`}>
+    <div className={`grid gap-1.5 items-end py-1.5 border-b ${hasError?'border-red-500':'border-def'}`}
+      style={{ gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr auto' }}>
       <div><div style={{ fontSize: 'var(--font-small)', color: 'var(--color-text-muted)', marginBottom: 2 }}>구분</div>
-        <select value={row.group} onChange={e => onUpdate(row.id,{group:e.target.value as any})} className="w-full bg-surface-2 border border-def rounded px-2 py-1.5 text-text-secondary focus:border-accent focus:outline-none" style={{ fontSize: 'var(--font-body)' }}><option value="control">기준군</option><option value="test">비교군</option></select></div>
+        <select value={row.group} onChange={e => onUpdate(row.id,{group:e.target.value as any})} className="w-full bg-surface-2 border border-def rounded px-2 py-1.5 text-text-secondary focus:border-accent focus:outline-none" style={{ fontSize: 'var(--font-body)' }} title={row.group==='control'?'기준군':'비교군'}><option value="control">기준군</option><option value="test">비교군</option></select></div>
       <div><div style={{ fontSize: 'var(--font-small)', color: 'var(--color-text-muted)', marginBottom: 2 }}>행 이름</div>
-        <input value={row.label} onChange={e => onUpdate(row.id,{label:e.target.value})} className="w-full bg-surface-2 border border-def rounded px-2 py-1.5 text-text-secondary focus:border-accent focus:outline-none" style={{ fontSize: 'var(--font-body)' }}/></div>
+        <input value={row.label} onChange={e => onUpdate(row.id,{label:e.target.value})} title={row.label} className="w-full bg-surface-2 border border-def rounded px-2 py-1.5 text-text-secondary focus:border-accent focus:outline-none" style={{ fontSize: 'var(--font-body)' }}/></div>
       <div><div style={{ fontSize: 'var(--font-small)', color: 'var(--color-text-muted)', marginBottom: 2 }}>채널 *</div>
-        <select value={row.media} onChange={e => onUpdate(row.id,{media:e.target.value,campaign:'',ad_group:'',ad:''})} className={`w-full bg-surface-2 rounded px-2 py-1.5 text-text-secondary focus:outline-none ${hasError&&!row.media?'border border-red-500':'border border-def focus:border-accent'}`} style={{ fontSize: 'var(--font-body)' }}><option value="">선택</option>{channels.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+        <select value={row.media} onChange={e => onUpdate(row.id,{media:e.target.value,campaign:'',ad_group:'',ad:''})} title={row.media||'선택'} className={`w-full bg-surface-2 rounded px-2 py-1.5 text-text-secondary focus:outline-none ${hasError&&!row.media?'border border-red-500':'border border-def focus:border-accent'}`} style={{ fontSize: 'var(--font-body)' }}><option value="">선택</option>{channels.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
       <div><div style={{ fontSize: 'var(--font-small)', color: 'var(--color-text-muted)', marginBottom: 2 }}>캠페인 *</div>
-        <DynamicSelect value={row.campaign} onChange={v=>onUpdate(row.id,{campaign:v,ad_group:'',ad:''})} fetchUrl={row.media?`/api/ab-meta?type=campaign&media=${encodeURIComponent(row.media)}`:null} placeholder="채널 선택 후" disabled={!row.media} error={hasError&&!!row.media&&!row.campaign}/></div>
+        <DynamicSelect value={row.campaign} onChange={v=>onUpdate(row.id,{campaign:v,ad_group:'',ad:''})} fetchUrl={row.media?`/api/ab-meta?type=campaign&media=${encodeURIComponent(row.media)}${dq}`:null} placeholder="채널 선택 후" disabled={!row.media} error={hasError&&!!row.media&&!row.campaign} title={row.campaign}/></div>
       <div><div style={{ fontSize: 'var(--font-small)', color: 'var(--color-text-muted)', marginBottom: 2 }}>그룹</div>
-        <DynamicSelect value={row.ad_group} onChange={v=>onUpdate(row.id,{ad_group:v,ad:''})} fetchUrl={row.campaign?`/api/ab-meta?type=group&media=${encodeURIComponent(row.media)}&campaign=${encodeURIComponent(row.campaign)}`:null} placeholder="(선택)" disabled={!row.campaign}/></div>
+        <DynamicSelect value={row.ad_group} onChange={v=>onUpdate(row.id,{ad_group:v,ad:''})} fetchUrl={row.campaign?`/api/ab-meta?type=group&media=${encodeURIComponent(row.media)}&campaign=${encodeURIComponent(row.campaign)}${dq}`:null} placeholder="(선택)" disabled={!row.campaign} title={row.ad_group}/></div>
       <div><div style={{ fontSize: 'var(--font-small)', color: 'var(--color-text-muted)', marginBottom: 2 }}>소재</div>
-        <DynamicSelect value={row.ad} onChange={v=>onUpdate(row.id,{ad:v})} fetchUrl={row.ad_group?`/api/ab-meta?type=ad&media=${encodeURIComponent(row.media)}&campaign=${encodeURIComponent(row.campaign)}&group=${encodeURIComponent(row.ad_group)}`:null} placeholder="(선택)" disabled={!row.ad_group}/></div>
+        <DynamicSelect value={row.ad} onChange={v=>onUpdate(row.id,{ad:v})} fetchUrl={row.ad_group?`/api/ab-meta?type=ad&media=${encodeURIComponent(row.media)}&campaign=${encodeURIComponent(row.campaign)}&group=${encodeURIComponent(row.ad_group)}${dq}`:null} placeholder="(선택)" disabled={!row.ad_group} title={row.ad}/></div>
       <div><div style={{ fontSize: 'var(--font-small)', color: 'var(--color-text-muted)', marginBottom: 2 }}>시작일</div>
         <input type="date" value={row.dateStart} onChange={e=>onUpdate(row.id,{dateStart:e.target.value})} onClick={e=>(e.currentTarget as any).showPicker?.()} className="w-full bg-surface-2 border border-def rounded px-2 py-1.5 text-text-secondary focus:border-accent focus:outline-none cursor-pointer" style={{ fontSize: 'var(--font-body)' }}/></div>
       <div><div style={{ fontSize: 'var(--font-small)', color: 'var(--color-text-muted)', marginBottom: 2 }}>종료일</div>
         <input type="date" value={row.dateEnd} onChange={e=>onUpdate(row.id,{dateEnd:e.target.value})} onClick={e=>(e.currentTarget as any).showPicker?.()} className="w-full bg-surface-2 border border-def rounded px-2 py-1.5 text-text-secondary focus:border-accent focus:outline-none cursor-pointer" style={{ fontSize: 'var(--font-body)' }}/></div>
+      <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 2 }}>
+        <button onClick={() => onDelete(row.id)} title="이 행 삭제"
+          style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: '1px solid rgba(248,113,113,0.3)', backgroundColor: 'rgba(248,113,113,0.08)', color: '#f87171', fontSize: 'var(--font-body)', lineHeight: 1, flexShrink: 0 }}>
+          ✕
+        </button>
+      </div>
     </div>
   );
 }
@@ -240,6 +253,9 @@ function TestCard({ test, onDelete, onRefresh, expanded: extExpanded, onExpand }
   const [exportError, setExportError] = useState<string|null>(null);
   const rows = test.test_rows ?? [];
   const isExpanded = extExpanded !== undefined ? extExpanded : expanded;
+  const { selectedRange, compareRange } = useDashboard();
+  const chRange = { selStart: selectedRange.start, selEnd: selectedRange.end, cmpStart: compareRange.start, cmpEnd: compareRange.end };
+  const { channels } = useChannels(chRange);
 
 
   const startEdit = () => {
@@ -255,6 +271,10 @@ function TestCard({ test, onDelete, onRefresh, expanded: extExpanded, onExpand }
     setEditRows(prev => {
       return prev.map(r => r.id===id ? {...r,...patch} : r);
     });
+  };
+
+  const deleteEditRow = (id: string) => {
+    setEditRows(prev => prev.filter(r => r.id !== id));
   };
 
   const applyTestDatesToRows = () => {
@@ -320,7 +340,7 @@ function TestCard({ test, onDelete, onRefresh, expanded: extExpanded, onExpand }
           {editError && <div className="mb-2 px-3 py-1.5 rounded bg-red-500/10 border border-red-500/30" style={{ fontSize: 'var(--font-body)', color: 'var(--color-delta-neg)' }}>⚠️ {editError}</div>}
           {/* 직무 선택 */}
           <div className="mb-3">
-            <label style={{ fontSize: 'var(--font-small)', color: 'var(--color-text-muted)', marginBottom: 4, display: 'block' }}>프로젝트</label>
+            <label style={{ fontSize: 'var(--font-small)', color: 'var(--color-text-muted)', marginBottom: 4, display: 'block' }}>{IS_PORTFOLIO_CLIENT ? '프로젝트' : '직무'}</label>
             <select value={editJobType} onChange={e=>setEditJobType(e.target.value)}
               className="bg-surface-2 border border-def rounded px-2 py-1.5 text-text-secondary focus:border-accent focus:outline-none"
               style={{ fontSize: 'var(--font-body)', minWidth: 140 }}>
@@ -330,9 +350,9 @@ function TestCard({ test, onDelete, onRefresh, expanded: extExpanded, onExpand }
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-3 items-end">
             <div><label style={{ fontSize: 'var(--font-small)', color: 'var(--color-text-muted)', marginBottom: 4, display: 'block' }}>테스트명 *</label>
-              <input value={editTestName} onChange={e=>setEditTestName(e.target.value)} className="w-full bg-surface-2 border border-def rounded px-2 py-1.5 text-text-secondary focus:border-accent focus:outline-none" style={{ fontSize: 'var(--font-body)' }}/></div>
+              <input value={editTestName} onChange={e=>setEditTestName(e.target.value)} title={editTestName} className="w-full bg-surface-2 border border-def rounded px-2 py-1.5 text-text-secondary focus:border-accent focus:outline-none" style={{ fontSize: 'var(--font-body)' }}/></div>
             <div><label style={{ fontSize: 'var(--font-small)', color: 'var(--color-text-muted)', marginBottom: 4, display: 'block' }}>설명</label>
-              <input value={editDescription} onChange={e=>setEditDescription(e.target.value)} className="w-full bg-surface-2 border border-def rounded px-2 py-1.5 text-text-secondary focus:border-accent focus:outline-none" style={{ fontSize: 'var(--font-body)' }}/></div>
+              <input value={editDescription} onChange={e=>setEditDescription(e.target.value)} title={editDescription} className="w-full bg-surface-2 border border-def rounded px-2 py-1.5 text-text-secondary focus:border-accent focus:outline-none" style={{ fontSize: 'var(--font-body)' }}/></div>
             <div><label style={{ fontSize: 'var(--font-small)', color: 'var(--color-text-muted)', marginBottom: 4, display: 'block' }}>테스트 시작일</label>
               <input type="date" value={editTestDateStart} onChange={e=>setEditTestDateStart(e.target.value)} onClick={e=>(e.currentTarget as any).showPicker?.()} className="w-full bg-surface-2 border border-def rounded px-2 py-1.5 text-text-secondary focus:border-accent focus:outline-none cursor-pointer" style={{ fontSize: 'var(--font-body)' }}/></div>
             <div><label style={{ fontSize: 'var(--font-small)', color: 'var(--color-text-muted)', marginBottom: 4, display: 'block' }}>테스트 종료일</label>
@@ -345,7 +365,7 @@ function TestCard({ test, onDelete, onRefresh, expanded: extExpanded, onExpand }
               </button>
             </div>
           </div>
-          <div className="overflow-x-auto">{editRows.map(row => <EditRowForm key={row.id} row={row} onUpdate={updateEditRow} errorIds={errorIds} channels={channels}/>)}</div>
+          <div className="overflow-x-auto">{editRows.map(row => <EditRowForm key={row.id} row={row} onUpdate={updateEditRow} onDelete={deleteEditRow} errorIds={errorIds} channels={channels} dateRange={chRange}/>)}</div>
           <div className="flex gap-2 mt-3 justify-end">
             <button onClick={()=>{setEditing(false);setEditError(null);}} className="px-3 py-1.5 rounded-lg font-semibold transition-all" style={{ fontSize: 'var(--font-body)', backgroundColor:'color-mix(in srgb, var(--color-accent) 10%, transparent)', color:'var(--color-accent)', border:'1px solid var(--color-accent)' }}>취소</button>
             <button onClick={saveEdit} disabled={editLoading} className="px-4 py-1.5 rounded-lg font-semibold bg-accent text-white hover:bg-accent-hover disabled:opacity-50 transition-all" style={{ fontSize: 'var(--font-body)' }}>{editLoading?'저장 중...':'저장'}</button>
@@ -404,7 +424,7 @@ function ABCalendar({ tests, onTestClick }: { tests: ABTest[]; onTestClick: (id:
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [selectedChannels, setSelectedChannels] = useState<Set<string>>(new Set());
   // 직무 필터: jobGroupFilter = '전체'|'일용직'|'계약직', activeJobTypes = 활성 직무 Set
-  const [jobGroupFilter, setJobGroupFilter] = useState<string>('전체');
+  const [jobGroupFilter, setJobGroupFilter] = useState<'전체'|'일용직'|'계약직'>('전체');
   const [activeJobTypes, setActiveJobTypes] = useState<Set<JobType>>(new Set(JOB_TYPES));
   const theme = useTheme();
   const isDark = !isLightColor(theme.colorBg);
@@ -413,7 +433,7 @@ function ABCalendar({ tests, onTestClick }: { tests: ABTest[]; onTestClick: (id:
   const nextMonth = () => { if(viewMonth===11){setViewYear(y=>y+1);setViewMonth(0);}else setViewMonth(m=>m+1); };
 
   // 직무 필터 로직 (수정.11 스펙)
-  const handleJobGroupClick = (g: string) => {
+  const handleJobGroupClick = (g: '전체'|'일용직'|'계약직') => {
     setJobGroupFilter(g);
     if (g==='전체') setActiveJobTypes(new Set(JOB_TYPES));
     else if (g==='일용직') setActiveJobTypes(new Set(['Helper']));
@@ -689,6 +709,7 @@ function RegisterForm({ onSaved, open, setOpen }: { onSaved: ()=>void; open: boo
   const { selectedRange, compareRange } = useDashboard();
   const chRange = { selStart: selectedRange.start, selEnd: selectedRange.end, cmpStart: compareRange.start, cmpEnd: compareRange.end };
   const { channels } = useChannels(chRange);
+  const dq = `&selStart=${chRange.selStart}&selEnd=${chRange.selEnd}&cmpStart=${chRange.cmpStart}&cmpEnd=${chRange.cmpEnd}`;
   const [testName, setTestName] = useState('');
   const [description, setDescription] = useState('');
   const [testDateStart, setTestDateStart] = useState('');
@@ -704,6 +725,10 @@ function RegisterForm({ onSaved, open, setOpen }: { onSaved: ()=>void; open: boo
 
   const updateRow = (id: string, patch: Partial<Omit<TestRow,'metrics'>>) => {
     setRows(prev => prev.map(r => r.id===id?{...r,...patch}:r));
+  };
+
+  const deleteRow = (id: string) => {
+    setRows(prev => prev.filter(r => r.id !== id));
   };
 
   const applyTestDates = () => {
@@ -750,7 +775,7 @@ function RegisterForm({ onSaved, open, setOpen }: { onSaved: ()=>void; open: boo
 
       {/* 직무 선택 */}
       <div className="mb-3">
-        <label style={{ fontSize: "var(--font-small)", color: "var(--color-text-muted)", marginBottom: 4, display: "block" }}>프로젝트</label>
+        <label style={{ fontSize: "var(--font-small)", color: "var(--color-text-muted)", marginBottom: 4, display: "block" }}>{IS_PORTFOLIO_CLIENT ? '프로젝트' : '직무'}</label>
         <select value={jobType} onChange={e=>setJobType(e.target.value)}
           className="bg-surface-2 border border-def rounded px-2 py-1.5 text-text-secondary focus:border-accent focus:outline-none"
           style={{ fontSize: "var(--font-body)", minWidth: 140 }}>
@@ -762,9 +787,9 @@ function RegisterForm({ onSaved, open, setOpen }: { onSaved: ()=>void; open: boo
       {/* 상단: 테스트명 / 설명 / 테스트 시작일 / 테스트 종료일 / 날짜 일괄 적용 — 동일 높이 1행 */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4 items-end">
         <div><label style={{ fontSize: "var(--font-small)", color: "var(--color-text-muted)", marginBottom: 4, display: "block" }}>테스트명 *</label>
-          <input value={testName} onChange={e=>setTestName(e.target.value)} placeholder="예: 이미지 A vs B 테스트" className="w-full bg-surface-2 border border-def rounded px-2 py-1.5 text-text-secondary focus:border-accent focus:outline-none" style={{ fontSize: "var(--font-body)" }}/></div>
+          <input value={testName} onChange={e=>setTestName(e.target.value)} title={testName} placeholder="예: 이미지 A vs B 테스트" className="w-full bg-surface-2 border border-def rounded px-2 py-1.5 text-text-secondary focus:border-accent focus:outline-none" style={{ fontSize: "var(--font-body)" }}/></div>
         <div><label style={{ fontSize: "var(--font-small)", color: "var(--color-text-muted)", marginBottom: 4, display: "block" }}>설명 (선택)</label>
-          <input value={description} onChange={e=>setDescription(e.target.value)} placeholder="테스트 목적 or 가설" className="w-full bg-surface-2 border border-def rounded px-2 py-1.5 text-text-secondary focus:border-accent focus:outline-none" style={{ fontSize: "var(--font-body)" }}/></div>
+          <input value={description} onChange={e=>setDescription(e.target.value)} title={description} placeholder="테스트 목적 or 가설" className="w-full bg-surface-2 border border-def rounded px-2 py-1.5 text-text-secondary focus:border-accent focus:outline-none" style={{ fontSize: "var(--font-body)" }}/></div>
         <div><label style={{ fontSize: "var(--font-small)", color: "var(--color-text-muted)", marginBottom: 4, display: "block" }}>테스트 시작일 *</label>
           <input type="date" value={testDateStart} onChange={e=>setTestDateStart(e.target.value)} onClick={e=>(e.currentTarget as any).showPicker?.()} className="w-full bg-surface-2 border border-def rounded px-2 py-1.5 text-text-secondary focus:border-accent focus:outline-none cursor-pointer" style={{ fontSize: "var(--font-body)" }}/></div>
         <div><label style={{ fontSize: "var(--font-small)", color: "var(--color-text-muted)", marginBottom: 4, display: "block" }}>테스트 종료일 *</label>
@@ -779,8 +804,8 @@ function RegisterForm({ onSaved, open, setOpen }: { onSaved: ()=>void; open: boo
       </div>
 
       {/* 행 헤더 */}
-      <div className="grid grid-cols-8 gap-1.5 mb-1 px-0.5">
-        {['구분','행 이름','채널 *','캠페인 *','그룹','소재','시작일','종료일'].map(h=>(
+      <div className="gap-1.5 mb-1 px-0.5" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr auto' }}>
+        {['구분','행 이름','채널 *','캠페인 *','그룹','소재','시작일','종료일',''].map(h=>(
           <div key={h} style={{ fontSize: "var(--font-small)", color: "var(--color-text-muted)", fontWeight: 600 }}>{h}</div>
         ))}
       </div>
@@ -790,15 +815,20 @@ function RegisterForm({ onSaved, open, setOpen }: { onSaved: ()=>void; open: boo
         {rows.map(row => {
           const hasError = errorIds.has(row.id);
           return (
-            <div key={row.id} className={`grid grid-cols-8 gap-1.5 items-center py-1.5 rounded-lg px-1.5 ${hasError?'bg-red-500/5 border border-red-500/30':''}`}>
-              <select value={row.group} onChange={e=>updateRow(row.id,{group:e.target.value as any})} className="w-full bg-surface-2 border border-def rounded px-2 py-1.5 text-text-secondary focus:border-accent focus:outline-none" style={{ fontSize: 'var(--font-body)' }}><option value="control">기준군</option><option value="test">비교군</option></select>
-              <input value={row.label} onChange={e=>updateRow(row.id,{label:e.target.value})} className="w-full bg-surface-2 border border-def rounded px-2 py-1.5 text-text-secondary focus:border-accent focus:outline-none" style={{ fontSize: 'var(--font-body)' }}/>
-              <select value={row.media} onChange={e=>updateRow(row.id,{media:e.target.value,campaign:'',ad_group:'',ad:''})} className={`w-full bg-surface-2 rounded px-2 py-1.5 text-text-secondary focus:outline-none ${hasError&&!row.media?'border border-red-500':'border border-def focus:border-accent'}`} style={{ fontSize: 'var(--font-body)' }}><option value="">선택</option>{channels.map(c=><option key={c} value={c}>{c}</option>)}</select>
-              <DynamicSelect value={row.campaign} onChange={v=>updateRow(row.id,{campaign:v,ad_group:'',ad:''})} fetchUrl={row.media?`/api/ab-meta?type=campaign&media=${encodeURIComponent(row.media)}`:null} placeholder="채널 선택 후" disabled={!row.media} error={hasError&&!!row.media&&!row.campaign}/>
-              <DynamicSelect value={row.ad_group} onChange={v=>updateRow(row.id,{ad_group:v,ad:''})} fetchUrl={row.campaign?`/api/ab-meta?type=group&media=${encodeURIComponent(row.media)}&campaign=${encodeURIComponent(row.campaign)}`:null} placeholder="(선택)" disabled={!row.campaign}/>
-              <DynamicSelect value={row.ad} onChange={v=>updateRow(row.id,{ad:v})} fetchUrl={row.ad_group?`/api/ab-meta?type=ad&media=${encodeURIComponent(row.media)}&campaign=${encodeURIComponent(row.campaign)}&group=${encodeURIComponent(row.ad_group)}`:null} placeholder="(선택)" disabled={!row.ad_group}/>
+            <div key={row.id} className={`gap-1.5 items-center py-1.5 rounded-lg px-1.5 ${hasError?'bg-red-500/5 border border-red-500/30':''}`}
+              style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr auto' }}>
+              <select value={row.group} onChange={e=>updateRow(row.id,{group:e.target.value as any})} title={row.group==='control'?'기준군':'비교군'} className="w-full bg-surface-2 border border-def rounded px-2 py-1.5 text-text-secondary focus:border-accent focus:outline-none" style={{ fontSize: 'var(--font-body)' }}><option value="control">기준군</option><option value="test">비교군</option></select>
+              <input value={row.label} onChange={e=>updateRow(row.id,{label:e.target.value})} title={row.label} className="w-full bg-surface-2 border border-def rounded px-2 py-1.5 text-text-secondary focus:border-accent focus:outline-none" style={{ fontSize: 'var(--font-body)' }}/>
+              <select value={row.media} onChange={e=>updateRow(row.id,{media:e.target.value,campaign:'',ad_group:'',ad:''})} title={row.media||'채널 선택'} className={`w-full bg-surface-2 rounded px-2 py-1.5 text-text-secondary focus:outline-none ${hasError&&!row.media?'border border-red-500':'border border-def focus:border-accent'}`} style={{ fontSize: 'var(--font-body)' }}><option value="">선택</option>{channels.map(c=><option key={c} value={c}>{c}</option>)}</select>
+              <DynamicSelect value={row.campaign} onChange={v=>updateRow(row.id,{campaign:v,ad_group:'',ad:''})} fetchUrl={row.media?`/api/ab-meta?type=campaign&media=${encodeURIComponent(row.media)}${dq}`:null} placeholder="채널 선택 후" disabled={!row.media} error={hasError&&!!row.media&&!row.campaign} title={row.campaign}/>
+              <DynamicSelect value={row.ad_group} onChange={v=>updateRow(row.id,{ad_group:v,ad:''})} fetchUrl={row.campaign?`/api/ab-meta?type=group&media=${encodeURIComponent(row.media)}&campaign=${encodeURIComponent(row.campaign)}${dq}`:null} placeholder="(선택)" disabled={!row.campaign} title={row.ad_group}/>
+              <DynamicSelect value={row.ad} onChange={v=>updateRow(row.id,{ad:v})} fetchUrl={row.ad_group?`/api/ab-meta?type=ad&media=${encodeURIComponent(row.media)}&campaign=${encodeURIComponent(row.campaign)}&group=${encodeURIComponent(row.ad_group)}${dq}`:null} placeholder="(선택)" disabled={!row.ad_group} title={row.ad}/>
               <input type="date" value={row.dateStart} onChange={e=>updateRow(row.id,{dateStart:e.target.value})} onClick={e=>(e.currentTarget as any).showPicker?.()} className={`w-full bg-surface-2 rounded px-2 py-1.5 text-text-secondary focus:outline-none cursor-pointer ${hasError&&!row.dateStart?'border border-red-500':'border border-def focus:border-accent'}`} style={{ fontSize: 'var(--font-body)' }}/>
               <input type="date" value={row.dateEnd} onChange={e=>updateRow(row.id,{dateEnd:e.target.value})} onClick={e=>(e.currentTarget as any).showPicker?.()} className={`w-full bg-surface-2 rounded px-2 py-1.5 text-text-secondary focus:outline-none cursor-pointer ${hasError&&!row.dateEnd?'border border-red-500':'border border-def focus:border-accent'}`} style={{ fontSize: 'var(--font-body)' }}/>
+              <button onClick={()=>deleteRow(row.id)} title="이 행 삭제"
+                style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: '1px solid rgba(248,113,113,0.3)', backgroundColor: 'rgba(248,113,113,0.08)', color: '#f87171', fontSize: 'var(--font-body)', lineHeight: 1 }}>
+                ✕
+              </button>
             </div>
           );
         })}
@@ -819,9 +849,6 @@ function RegisterForm({ onSaved, open, setOpen }: { onSaved: ()=>void; open: boo
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 function ABTestPageInner() {
-  const { selectedRange, compareRange } = useDashboard();
-  const chRange = { selStart: selectedRange.start, selEnd: selectedRange.end, cmpStart: compareRange.start, cmpEnd: compareRange.end };
-  const { channels } = useChannels(chRange);
   const [tests, setTests] = useState<ABTest[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string|null>(null);
@@ -830,9 +857,9 @@ function ABTestPageInner() {
   const [registerOpen, setRegisterOpen] = useState(false);
 
   // 직무 필터
-  const [jobGroupFilter, setJobGroupFilter] = useState<string>('전체');
+  const [jobGroupFilter, setJobGroupFilter] = useState<'전체'|'일용직'|'계약직'>('전체');
   const [activeJobTypes, setActiveJobTypes] = useState<Set<JobType>>(new Set(JOB_TYPES));
-  const handleJobGroupClick = (g: string) => {
+  const handleJobGroupClick = (g: '전체'|'일용직'|'계약직') => {
     setJobGroupFilter(g);
     if (g==='전체') setActiveJobTypes(new Set(JOB_TYPES));
     else if (g==='일용직') setActiveJobTypes(new Set(['Helper']));
