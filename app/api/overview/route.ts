@@ -189,7 +189,6 @@ export async function GET(req: NextRequest) {
            CAST(test_date_end   AS STRING) as test_date_end,
            TO_JSON_STRING(test_rows) as test_rows_str
          FROM ${AB_TABLE}
-         WHERE IFNULL(job_type, '') = 'Helper' OR IFNULL(job_type, '') = ''
          ORDER BY created_at DESC LIMIT 20`
       );
       abTests = rawAB.map((r: any) => {
@@ -246,7 +245,6 @@ export async function GET(req: NextRequest) {
                 IFNULL(job_type, '') as job_type
          FROM ${AR_TABLE}
          WHERE date >= DATE_SUB(@d1End, INTERVAL 7 DAY)
-           AND (IFNULL(job_type, '') = 'Helper' OR IFNULL(job_type, '') = '')
          ORDER BY date DESC, created_at DESC LIMIT 30`,
         { d1End }
       );
