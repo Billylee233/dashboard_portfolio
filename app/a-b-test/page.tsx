@@ -11,7 +11,6 @@ import type { MetricsRow } from '@/lib/types';
 import EmptyState from '@/components/ui/EmptyState';
 import { useChannels } from '@/lib/useChannels';
 import { useDashboard } from '@/components/layout/DashboardLayout';
-import { useDashboard } from '@/components/layout/DashboardLayout';
 
 const IS_PORTFOLIO_CLIENT = process.env.NEXT_PUBLIC_PORTFOLIO_MODE === 'true';
 const JOB_TYPES = IS_PORTFOLIO_CLIENT
@@ -253,11 +252,6 @@ function TestCard({ test, onDelete, onRefresh, expanded: extExpanded, onExpand }
   const [exportError, setExportError] = useState<string|null>(null);
   const rows = test.test_rows ?? [];
   const isExpanded = extExpanded !== undefined ? extExpanded : expanded;
-  const { selectedRange, compareRange } = useDashboard();
-  const chRange = { selStart: selectedRange.start, selEnd: selectedRange.end, cmpStart: compareRange.start, cmpEnd: compareRange.end };
-  const { channels } = useChannels(chRange);
-
-
   const startEdit = () => {
     const cloned = JSON.parse(JSON.stringify(rows));
     setEditRows(cloned); setEditTestName(test.test_name); setEditDescription(test.description??'');
