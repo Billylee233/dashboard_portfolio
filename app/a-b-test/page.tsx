@@ -967,7 +967,7 @@ function ABTestPageInner() {
         {/* 구분선 */}
         <span style={{ width:2, height:18, backgroundColor:'var(--color-border-subtle)', borderRadius:1, opacity:0.8 }} />
         {/* 직무 분류 */}
-        {(IS_PORTFOLIO_CLIENT ? ['전체','그룹A','그룹B'] : ['전체','일용직','계약직']).map(g => {
+        {(IS_PORTFOLIO_CLIENT ? ['전체','그룹A','그룹B'] : ['전체','일용직','계약직']).map((g: string) => {
           const active = jobGroupFilter === g;
           return (
             <button key={g} onClick={() => handleJobGroupClick(g)}
