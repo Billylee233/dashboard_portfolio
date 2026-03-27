@@ -86,7 +86,9 @@ export async function POST(req: NextRequest) {
 
     // 포트폴리오 모드: 역매핑 맵 사전 빌드
     let chRevMap = new Map<string, string>();
-    const campRevMaps = new Map<string, Map<string, string>>();
+    const campRevMaps  = new Map<string, Map<string, string>>();
+    const groupRevMaps = new Map<string, Map<string, string>>(); // key: "media||campaign"
+    const adRevMaps    = new Map<string, Map<string, string>>(); // key: "media||campaign||group"
     if (IS_PORTFOLIO) {
       const realChs = await (await import('@/lib/bigquery')).queryDistinctMedia();
       chRevMap = buildReverseChannelMap(realChs);
@@ -95,18 +97,20 @@ export async function POST(req: NextRequest) {
     const rowsWithMetrics = await Promise.all(
       rows.map(async (row: any) => {
         if (!row.media || !row.campaign) return { ...row, metrics: null };
-        // try 밖에서 선언 → catch에서도 접근 가능
         let realMedia = IS_PORTFOLIO ? reverseChannel(row.media, chRevMap) : row.media;
         let realCamp  = row.campaign;
-        const realGroup = row.ad_group ?? '';
-        const realAd    = row.ad ?? '';
+        let realGroup = row.ad_group ?? '';
+        let realAd    = row.ad ?? '';
         try {
           if (IS_PORTFOLIO) {
+            const P = process.env.NEXT_PUBLIC_BQ_PROJECT_ID!;
+            const D = process.env.NEXT_PUBLIC_BQ_DATASET!;
+            const BQ_TABLE = `\`${P}.${D}.all_marketing_data_partitioned\``;
+
+            // campaign 역맵
             if (!campRevMaps.has(realMedia)) {
-              const P = process.env.NEXT_PUBLIC_BQ_PROJECT_ID!;
-              const D = process.env.NEXT_PUBLIC_BQ_DATASET!;
               const [cr] = await getBQClient().query({
-                query: `SELECT DISTINCT campaign FROM \`${P}.${D}.all_marketing_data_partitioned\` WHERE media = @media AND campaign IS NOT NULL`,
+                query: `SELECT DISTINCT campaign FROM ${BQ_TABLE} WHERE media = @media AND campaign IS NOT NULL`,
                 params: { media: realMedia }, useLegacySql: false,
               }) as any;
               campRevMaps.set(realMedia, new Map(
@@ -117,19 +121,54 @@ export async function POST(req: NextRequest) {
               ));
             }
             realCamp = campRevMaps.get(realMedia)?.get(row.campaign) ?? row.campaign;
+
+            // group 역맵
+            if (row.ad_group) {
+              const grpKey = `${realMedia}||${realCamp}`;
+              if (!groupRevMaps.has(grpKey)) {
+                const [gr] = await getBQClient().query({
+                  query: `SELECT DISTINCT \`group\` FROM ${BQ_TABLE} WHERE media = @media AND campaign = @campaign AND \`group\` IS NOT NULL`,
+                  params: { media: realMedia, campaign: realCamp }, useLegacySql: false,
+                }) as any;
+                groupRevMaps.set(grpKey, new Map(
+                  (gr as any[]).map((r: any) => {
+                    const real = r.group?.value ?? r.group ?? '';
+                    return [maskGroup(real), real] as [string, string];
+                  })
+                ));
+              }
+              realGroup = groupRevMaps.get(grpKey)?.get(row.ad_group) ?? row.ad_group;
+            }
+
+            // ad 역맵
+            if (row.ad && realGroup) {
+              const adKey = `${realMedia}||${realCamp}||${realGroup}`;
+              if (!adRevMaps.has(adKey)) {
+                const [ar] = await getBQClient().query({
+                  query: `SELECT DISTINCT ad FROM ${BQ_TABLE} WHERE media = @media AND campaign = @campaign AND \`group\` = @group AND ad IS NOT NULL`,
+                  params: { media: realMedia, campaign: realCamp, group: realGroup }, useLegacySql: false,
+                }) as any;
+                adRevMaps.set(adKey, new Map(
+                  (ar as any[]).map((r: any) => {
+                    const real = r.ad?.value ?? r.ad ?? '';
+                    return [maskAd(real), real] as [string, string];
+                  })
+                ));
+              }
+              realAd = adRevMaps.get(adKey)?.get(row.ad) ?? row.ad;
+            }
           }
 
           const data = await queryAdPerformance(
             { start: row.dateRange.start, end: row.dateRange.end },
             realMedia, realCamp, realGroup, realAd
           );
-          // BQ에는 실제 채널명으로 저장 (GET 시 maskTestRows가 다시 마스킹)
+          // BQ에는 실제 값으로 저장 (GET 시 maskTestRows가 마스킹)
           const savedRow = IS_PORTFOLIO
             ? { ...row, media: realMedia, campaign: realCamp, ad_group: realGroup, ad: realAd }
             : row;
           return { ...savedRow, metrics: data ? calcMetrics(data) : null };
         } catch {
-          // catch에서도 실제 채널명으로 저장
           const savedRow = IS_PORTFOLIO
             ? { ...row, media: realMedia, campaign: realCamp, ad_group: realGroup, ad: realAd }
             : row;
@@ -178,7 +217,7 @@ export async function POST(req: NextRequest) {
       await bq.query({
         query: `INSERT INTO ${AB_TABLE()} (test_id, test_name, description, test_date_start, test_date_end, test_rows, ai_comment, job_type, created_at, updated_at)
                 VALUES (@test_id, @test_name, @description, @test_date_start, @test_date_end, PARSE_JSON(@test_rows), @ai_comment, @job_type, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP())`,
-        params: { test_id, test_name, description: description ?? '', test_date_start: test_date_start ?? null, test_date_end: test_date_end ?? null, test_rows: JSON.stringify(rowsWithMetrics), ai_comment, job_type: job_type ?? null },
+        params: { test_id, test_name, description: description ?? '', test_date_start: (test_date_start || null), test_date_end: (test_date_end || null), test_rows: JSON.stringify(rowsWithMetrics), ai_comment, job_type: job_type ?? null },
         types: { test_date_start: 'DATE', test_date_end: 'DATE', ai_comment: 'STRING', job_type: 'STRING' },
         useLegacySql: false,
       });
@@ -217,7 +256,9 @@ export async function PATCH(req: NextRequest) {
 
     // 포트폴리오 모드: PATCH도 역매핑 필요
     let chRevMapP = new Map<string, string>();
-    const campRevMapsP = new Map<string, Map<string, string>>();
+    const campRevMapsP  = new Map<string, Map<string, string>>();
+    const groupRevMapsP = new Map<string, Map<string, string>>();
+    const adRevMapsP    = new Map<string, Map<string, string>>();
     if (IS_PORTFOLIO) {
       const realChs = await (await import('@/lib/bigquery')).queryDistinctMedia();
       chRevMapP = buildReverseChannelMap(realChs);
@@ -228,15 +269,18 @@ export async function PATCH(req: NextRequest) {
         if (!row.media || !row.campaign || !row.dateRange?.start || !row.dateRange?.end) return { ...row, metrics: null };
         let realMedia = IS_PORTFOLIO ? reverseChannel(row.media, chRevMapP) : row.media;
         let realCamp  = row.campaign;
-        const realGroup = row.ad_group ?? '';
-        const realAd    = row.ad ?? '';
+        let realGroup = row.ad_group ?? '';
+        let realAd    = row.ad ?? '';
         try {
           if (IS_PORTFOLIO) {
+            const P = process.env.NEXT_PUBLIC_BQ_PROJECT_ID!;
+            const D = process.env.NEXT_PUBLIC_BQ_DATASET!;
+            const BQ_TABLE = `\`${P}.${D}.all_marketing_data_partitioned\``;
+
+            // campaign 역맵
             if (!campRevMapsP.has(realMedia)) {
-              const P = process.env.NEXT_PUBLIC_BQ_PROJECT_ID!;
-              const D = process.env.NEXT_PUBLIC_BQ_DATASET!;
               const [cr] = await getBQClient().query({
-                query: `SELECT DISTINCT campaign FROM \`${P}.${D}.all_marketing_data_partitioned\` WHERE media = @media AND campaign IS NOT NULL`,
+                query: `SELECT DISTINCT campaign FROM ${BQ_TABLE} WHERE media = @media AND campaign IS NOT NULL`,
                 params: { media: realMedia }, useLegacySql: false,
               }) as any;
               campRevMapsP.set(realMedia, new Map(
@@ -247,6 +291,42 @@ export async function PATCH(req: NextRequest) {
               ));
             }
             realCamp = campRevMapsP.get(realMedia)?.get(row.campaign) ?? row.campaign;
+
+            // group 역맵
+            if (row.ad_group) {
+              const grpKey = `${realMedia}||${realCamp}`;
+              if (!groupRevMapsP.has(grpKey)) {
+                const [gr] = await getBQClient().query({
+                  query: `SELECT DISTINCT \`group\` FROM ${BQ_TABLE} WHERE media = @media AND campaign = @campaign AND \`group\` IS NOT NULL`,
+                  params: { media: realMedia, campaign: realCamp }, useLegacySql: false,
+                }) as any;
+                groupRevMapsP.set(grpKey, new Map(
+                  (gr as any[]).map((r: any) => {
+                    const real = r.group?.value ?? r.group ?? '';
+                    return [maskGroup(real), real] as [string, string];
+                  })
+                ));
+              }
+              realGroup = groupRevMapsP.get(grpKey)?.get(row.ad_group) ?? row.ad_group;
+            }
+
+            // ad 역맵
+            if (row.ad && realGroup) {
+              const adKey = `${realMedia}||${realCamp}||${realGroup}`;
+              if (!adRevMapsP.has(adKey)) {
+                const [ar] = await getBQClient().query({
+                  query: `SELECT DISTINCT ad FROM ${BQ_TABLE} WHERE media = @media AND campaign = @campaign AND \`group\` = @group AND ad IS NOT NULL`,
+                  params: { media: realMedia, campaign: realCamp, group: realGroup }, useLegacySql: false,
+                }) as any;
+                adRevMapsP.set(adKey, new Map(
+                  (ar as any[]).map((r: any) => {
+                    const real = r.ad?.value ?? r.ad ?? '';
+                    return [maskAd(real), real] as [string, string];
+                  })
+                ));
+              }
+              realAd = adRevMapsP.get(adKey)?.get(row.ad) ?? row.ad;
+            }
           }
           const data = await queryAdPerformance({ start: row.dateRange.start, end: row.dateRange.end }, realMedia, realCamp, realGroup, realAd);
           const savedRow = IS_PORTFOLIO
@@ -268,8 +348,8 @@ export async function PATCH(req: NextRequest) {
       const params: any = { test_id, test_rows: JSON.stringify(rowsWithMetrics) };
       if (test_name       !== undefined) { sets.push('test_name = @test_name');           params.test_name       = test_name; }
       if (description     !== undefined) { sets.push('description = @description');       params.description     = description; }
-      if (test_date_start !== undefined) { sets.push('test_date_start = @test_date_start'); params.test_date_start = test_date_start; }
-      if (test_date_end   !== undefined) { sets.push('test_date_end = @test_date_end');   params.test_date_end   = test_date_end; }
+      if (test_date_start !== undefined) { sets.push('test_date_start = @test_date_start'); params.test_date_start = (test_date_start || null); }
+      if (test_date_end   !== undefined) { sets.push('test_date_end = @test_date_end');   params.test_date_end   = (test_date_end || null); }
       if (job_type        !== undefined) { sets.push('job_type = @job_type');             params.job_type        = job_type; }
       await getBQClient().query({ query: `UPDATE ${AB_TABLE()} SET ${sets.join(', ')} WHERE test_id = @test_id`, params, useLegacySql: false });
     } else {
@@ -277,8 +357,8 @@ export async function PATCH(req: NextRequest) {
         test_rows: JSON.stringify(rowsWithMetrics),
         ...(test_name       !== undefined ? { test_name }       : {}),
         ...(description     !== undefined ? { description }     : {}),
-        ...(test_date_start !== undefined ? { test_date_start } : {}),
-        ...(test_date_end   !== undefined ? { test_date_end }   : {}),
+        ...(test_date_start !== undefined ? { test_date_start: (test_date_start || null) } : {}),
+        ...(test_date_end   !== undefined ? { test_date_end:   (test_date_end   || null) } : {}),
         ...(job_type        !== undefined ? { job_type }        : {}),
       });
     }

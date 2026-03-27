@@ -430,8 +430,7 @@ function ABCalendar({ tests, onTestClick }: { tests: ABTest[]; onTestClick: (id:
   const handleJobGroupClick = (g: string) => {
     setJobGroupFilter(g);
     if (g==='전체') setActiveJobTypes(new Set(JOB_TYPES));
-    else if (g==='일용직') setActiveJobTypes(new Set(['Helper']));
-    else setActiveJobTypes(new Set(JOB_TYPES.filter(j=>j!=='Helper')));
+    else setActiveJobTypes(new Set(JOB_GROUP[g] ?? JOB_TYPES));
   };
   const toggleJobType = (jt: JobType) => {
     setActiveJobTypes(prev => {
@@ -856,8 +855,7 @@ function ABTestPageInner() {
   const handleJobGroupClick = (g: string) => {
     setJobGroupFilter(g);
     if (g==='전체') setActiveJobTypes(new Set(JOB_TYPES));
-    else if (g==='일용직') setActiveJobTypes(new Set(['Helper']));
-    else setActiveJobTypes(new Set(JOB_TYPES.filter(j=>j!=='Helper')));
+    else setActiveJobTypes(new Set(JOB_GROUP[g] ?? JOB_TYPES));
   };
   const toggleJobType = (jt: JobType) => {
     setActiveJobTypes(prev => {
