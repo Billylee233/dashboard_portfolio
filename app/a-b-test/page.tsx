@@ -9,10 +9,12 @@ import { fmt } from '@/lib/calculations';
 import { calcABStats } from '@/lib/abTestStats';
 import type { MetricsRow } from '@/lib/types';
 import EmptyState from '@/components/ui/EmptyState';
+import { useChannels } from '@/lib/useChannels';
+import { useDashboard } from '@/components/layout/DashboardLayout';
 
 const IS_PORTFOLIO_CLIENT = process.env.NEXT_PUBLIC_PORTFOLIO_MODE === 'true';
 const JOB_TYPES = IS_PORTFOLIO_CLIENT
-  ? ['직무1','직무2','직무3','직무4','직무5','직무6'] as const
+  ? ['프로젝트1','프로젝트2','프로젝트3','프로젝트4','프로젝트5','프로젝트6'] as const
   : ['Helper','HL','MCL','FA','FO','CPF','S-FA'] as const;
 function hexToRgb(hex: string) {
   const h = (hex || '').replace('#', '');
@@ -24,19 +26,11 @@ const JOB_GROUP: Record<string, JobType[]> = {
   '전체': JOB_TYPES as unknown as JobType[],
   '일용직': ['Helper'],
   '계약직': ['HL','MCL','FA','FO','CPF','S-FA'],
-  '그룹A': ['직무1'],
-  '그룹B': ['직무2','직무3','직무4','직무5','직무6'],
+  '그룹A': ['프로젝트1'],
+  '그룹B': ['프로젝트2','프로젝트3','프로젝트4','프로젝트5','프로젝트6'],
 };
 
-const CHANNELS = IS_PORTFOLIO_CLIENT ? [
-  '채널45','채널52','채널88','채널90','채널69',
-  '채널83','채널27','채널90','채널67',
-  '채널42','채널60','채널80','채널83',
-] : [
-  'Brand_Search_Naver','SA_Carrot','SA_Daum','SA_Google','SA_Naver',
-  'Kakao_Tokchannel','Carrot Market','Criteo','Demandgen',
-  'Google_pmax','Instagram','Tiktok','toss',
-];
+// CHANNELS는 useChannels 훅으로 동적 로드
 
 // 대체공휴일 적용 대상 공휴일
 const SUBSTITUTE_ELIGIBLE = new Set([
@@ -199,7 +193,7 @@ function StatsPanel({ rows }: { rows: TestRow[] }) {
 }
 
 // ─── EditRowForm ──────────────────────────────────────────────────────────────
-function EditRowForm({ row, onUpdate, errorIds }: { row: TestRow; onUpdate: (id:string,patch:Partial<TestRow>)=>void; errorIds:Set<string> }) {
+function EditRowForm({ row, onUpdate, errorIds, channels = [] }: { row: TestRow; onUpdate: (id:string,patch:Partial<TestRow>)=>void; errorIds:Set<string>; channels?: string[] }) {
   const hasError = errorIds.has(row.id);
   return (
     <div className={`grid grid-cols-8 gap-1.5 items-end py-1.5 border-b ${hasError?'border-red-500':'border-def'}`}>
@@ -208,7 +202,7 @@ function EditRowForm({ row, onUpdate, errorIds }: { row: TestRow; onUpdate: (id:
       <div><div style={{ fontSize: 'var(--font-small)', color: 'var(--color-text-muted)', marginBottom: 2 }}>행 이름</div>
         <input value={row.label} onChange={e => onUpdate(row.id,{label:e.target.value})} className="w-full bg-surface-2 border border-def rounded px-2 py-1.5 text-text-secondary focus:border-accent focus:outline-none" style={{ fontSize: 'var(--font-body)' }}/></div>
       <div><div style={{ fontSize: 'var(--font-small)', color: 'var(--color-text-muted)', marginBottom: 2 }}>채널 *</div>
-        <select value={row.media} onChange={e => onUpdate(row.id,{media:e.target.value,campaign:'',ad_group:'',ad:''})} className={`w-full bg-surface-2 rounded px-2 py-1.5 text-text-secondary focus:outline-none ${hasError&&!row.media?'border border-red-500':'border border-def focus:border-accent'}`} style={{ fontSize: 'var(--font-body)' }}><option value="">선택</option>{CHANNELS.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+        <select value={row.media} onChange={e => onUpdate(row.id,{media:e.target.value,campaign:'',ad_group:'',ad:''})} className={`w-full bg-surface-2 rounded px-2 py-1.5 text-text-secondary focus:outline-none ${hasError&&!row.media?'border border-red-500':'border border-def focus:border-accent'}`} style={{ fontSize: 'var(--font-body)' }}><option value="">선택</option>{channels.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
       <div><div style={{ fontSize: 'var(--font-small)', color: 'var(--color-text-muted)', marginBottom: 2 }}>캠페인 *</div>
         <DynamicSelect value={row.campaign} onChange={v=>onUpdate(row.id,{campaign:v,ad_group:'',ad:''})} fetchUrl={row.media?`/api/ab-meta?type=campaign&media=${encodeURIComponent(row.media)}`:null} placeholder="채널 선택 후" disabled={!row.media} error={hasError&&!!row.media&&!row.campaign}/></div>
       <div><div style={{ fontSize: 'var(--font-small)', color: 'var(--color-text-muted)', marginBottom: 2 }}>그룹</div>
@@ -323,7 +317,7 @@ function TestCard({ test, onDelete, onRefresh, expanded: extExpanded, onExpand }
           {editError && <div className="mb-2 px-3 py-1.5 rounded bg-red-500/10 border border-red-500/30" style={{ fontSize: 'var(--font-body)', color: 'var(--color-delta-neg)' }}>⚠️ {editError}</div>}
           {/* 직무 선택 */}
           <div className="mb-3">
-            <label style={{ fontSize: 'var(--font-small)', color: 'var(--color-text-muted)', marginBottom: 4, display: 'block' }}>직무</label>
+            <label style={{ fontSize: 'var(--font-small)', color: 'var(--color-text-muted)', marginBottom: 4, display: 'block' }}>프로젝트</label>
             <select value={editJobType} onChange={e=>setEditJobType(e.target.value)}
               className="bg-surface-2 border border-def rounded px-2 py-1.5 text-text-secondary focus:border-accent focus:outline-none"
               style={{ fontSize: 'var(--font-body)', minWidth: 140 }}>
@@ -348,7 +342,7 @@ function TestCard({ test, onDelete, onRefresh, expanded: extExpanded, onExpand }
               </button>
             </div>
           </div>
-          <div className="overflow-x-auto">{editRows.map(row => <EditRowForm key={row.id} row={row} onUpdate={updateEditRow} errorIds={errorIds}/>)}</div>
+          <div className="overflow-x-auto">{editRows.map(row => <EditRowForm key={row.id} row={row} onUpdate={updateEditRow} errorIds={errorIds} channels={channels}/>)}</div>
           <div className="flex gap-2 mt-3 justify-end">
             <button onClick={()=>{setEditing(false);setEditError(null);}} className="px-3 py-1.5 rounded-lg font-semibold transition-all" style={{ fontSize: 'var(--font-body)', backgroundColor:'color-mix(in srgb, var(--color-accent) 10%, transparent)', color:'var(--color-accent)', border:'1px solid var(--color-accent)' }}>취소</button>
             <button onClick={saveEdit} disabled={editLoading} className="px-4 py-1.5 rounded-lg font-semibold bg-accent text-white hover:bg-accent-hover disabled:opacity-50 transition-all" style={{ fontSize: 'var(--font-body)' }}>{editLoading?'저장 중...':'저장'}</button>
@@ -688,6 +682,9 @@ async function exportABTest(test: ABTest) {
 
 // ─── RegisterForm ─────────────────────────────────────────────────────────────
 function RegisterForm({ onSaved, open, setOpen }: { onSaved: ()=>void; open: boolean; setOpen: (v:boolean)=>void }) {
+  const { selectedRange, compareRange } = useDashboard();
+  const chRange = { selStart: selectedRange.start, selEnd: selectedRange.end, cmpStart: compareRange.start, cmpEnd: compareRange.end };
+  const { channels } = useChannels(chRange);
   const [testName, setTestName] = useState('');
   const [description, setDescription] = useState('');
   const [testDateStart, setTestDateStart] = useState('');
@@ -749,7 +746,7 @@ function RegisterForm({ onSaved, open, setOpen }: { onSaved: ()=>void; open: boo
 
       {/* 직무 선택 */}
       <div className="mb-3">
-        <label style={{ fontSize: "var(--font-small)", color: "var(--color-text-muted)", marginBottom: 4, display: "block" }}>직무</label>
+        <label style={{ fontSize: "var(--font-small)", color: "var(--color-text-muted)", marginBottom: 4, display: "block" }}>프로젝트</label>
         <select value={jobType} onChange={e=>setJobType(e.target.value)}
           className="bg-surface-2 border border-def rounded px-2 py-1.5 text-text-secondary focus:border-accent focus:outline-none"
           style={{ fontSize: "var(--font-body)", minWidth: 140 }}>
@@ -792,7 +789,7 @@ function RegisterForm({ onSaved, open, setOpen }: { onSaved: ()=>void; open: boo
             <div key={row.id} className={`grid grid-cols-8 gap-1.5 items-center py-1.5 rounded-lg px-1.5 ${hasError?'bg-red-500/5 border border-red-500/30':''}`}>
               <select value={row.group} onChange={e=>updateRow(row.id,{group:e.target.value as any})} className="w-full bg-surface-2 border border-def rounded px-2 py-1.5 text-text-secondary focus:border-accent focus:outline-none" style={{ fontSize: 'var(--font-body)' }}><option value="control">기준군</option><option value="test">비교군</option></select>
               <input value={row.label} onChange={e=>updateRow(row.id,{label:e.target.value})} className="w-full bg-surface-2 border border-def rounded px-2 py-1.5 text-text-secondary focus:border-accent focus:outline-none" style={{ fontSize: 'var(--font-body)' }}/>
-              <select value={row.media} onChange={e=>updateRow(row.id,{media:e.target.value,campaign:'',ad_group:'',ad:''})} className={`w-full bg-surface-2 rounded px-2 py-1.5 text-text-secondary focus:outline-none ${hasError&&!row.media?'border border-red-500':'border border-def focus:border-accent'}`} style={{ fontSize: 'var(--font-body)' }}><option value="">선택</option>{CHANNELS.map(c=><option key={c} value={c}>{c}</option>)}</select>
+              <select value={row.media} onChange={e=>updateRow(row.id,{media:e.target.value,campaign:'',ad_group:'',ad:''})} className={`w-full bg-surface-2 rounded px-2 py-1.5 text-text-secondary focus:outline-none ${hasError&&!row.media?'border border-red-500':'border border-def focus:border-accent'}`} style={{ fontSize: 'var(--font-body)' }}><option value="">선택</option>{channels.map(c=><option key={c} value={c}>{c}</option>)}</select>
               <DynamicSelect value={row.campaign} onChange={v=>updateRow(row.id,{campaign:v,ad_group:'',ad:''})} fetchUrl={row.media?`/api/ab-meta?type=campaign&media=${encodeURIComponent(row.media)}`:null} placeholder="채널 선택 후" disabled={!row.media} error={hasError&&!!row.media&&!row.campaign}/>
               <DynamicSelect value={row.ad_group} onChange={v=>updateRow(row.id,{ad_group:v,ad:''})} fetchUrl={row.campaign?`/api/ab-meta?type=group&media=${encodeURIComponent(row.media)}&campaign=${encodeURIComponent(row.campaign)}`:null} placeholder="(선택)" disabled={!row.campaign}/>
               <DynamicSelect value={row.ad} onChange={v=>updateRow(row.id,{ad:v})} fetchUrl={row.ad_group?`/api/ab-meta?type=ad&media=${encodeURIComponent(row.media)}&campaign=${encodeURIComponent(row.campaign)}&group=${encodeURIComponent(row.ad_group)}`:null} placeholder="(선택)" disabled={!row.ad_group}/>
@@ -818,6 +815,9 @@ function RegisterForm({ onSaved, open, setOpen }: { onSaved: ()=>void; open: boo
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 function ABTestPageInner() {
+  const { selectedRange, compareRange } = useDashboard();
+  const chRange = { selStart: selectedRange.start, selEnd: selectedRange.end, cmpStart: compareRange.start, cmpEnd: compareRange.end };
+  const { channels } = useChannels(chRange);
   const [tests, setTests] = useState<ABTest[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string|null>(null);
