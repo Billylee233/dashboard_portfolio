@@ -15,6 +15,7 @@ import { KeywordLeaderboard } from '@/components/sa/KeywordLeaderboard';
 import { KeywordMovementTable } from '@/components/sa/KeywordMovementTable';
 import { KeywordActionList, type ActionSettings, DEFAULT_RULES, DEFAULT_EXCLUDES } from '@/components/sa/KeywordActionList';
 import { KeywordExplorer } from '@/components/sa/KeywordExplorer';
+import { ChannelChatAgent } from '@/components/ui/ChannelChatAgent';
 
 // ─── 날짜 유틸 — overview-detail과 동일 ──────────────────────────────────────
 const addD = (s: string, n: number) => {
@@ -354,6 +355,9 @@ function SADetailContent() {
               deltaPercent={ps?.deltaPercent as any} loading={selLoading}
             />
           </section>
+
+          {/* Channel AI Agent */}
+          <ChannelChatAgent media={filter.media.length > 0 ? filter.media[0] : ''} />
 
           {/* 섹션 2: Performance Trend */}
           <TrendChart

@@ -9,6 +9,7 @@ import { PeriodComparisonChart } from '@/components/charts/PeriodComparisonChart
 import { BubbleScatterChart } from '@/components/charts/BubbleScatterChart';
 import { WaterfallChart } from '@/components/charts/WaterfallChart';
 import { AIDiagnosisBox } from '@/components/ui/AIDiagnosisBox';
+import { ChannelChatAgent } from '@/components/ui/ChannelChatAgent';
 import { HierarchyTable } from '@/components/tables/HierarchyTable';
 import { fmt } from '@/lib/calculations';
 import { useTheme } from '@/components/ui/ThemeEditor';
@@ -263,7 +264,10 @@ function ChannelDetailPage() {
       {/* 2. AI Diagnosis */}
       <AIDiagnosisBox media={media} latestDate={selData?.latestDate ?? null} allChannels={allChannels} />
 
-      {/* 3. Performance Trend — trendStart~trendEnd + 비교기간 */}
+      {/* 3. Channel AI Agent */}
+      <ChannelChatAgent media={media} />
+
+      {/* 4. Performance Trend — trendStart~trendEnd + 비교기간 */}
       <TrendChart
         title={ST('📈 Performance Trend', trendStart, trendEnd, trendCmpStart, trendCmpEnd)}
         data={trendData?.trend ?? []}
