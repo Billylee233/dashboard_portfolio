@@ -33,7 +33,7 @@ export function useDashboard() {
 const TABS = [
   { label: '📊 Overview',        href: '/' },
   { label: '📋 Overview Detail', href: '/overview-detail' },
-  { label: '🔍 Channel Detail',  href: '/channel-detail' },
+  { label: '🤖 Channel Detail + AI Agent',  href: '/channel-detail' },
   { label: '🔎 SA Detail',       href: '/sa-detail' },
   { label: '💰 Budget Planner',  href: '/budget-planner' },
   { label: '🧪 A/B Test',        href: '/a-b-test' },
