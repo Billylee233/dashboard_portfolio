@@ -8,7 +8,6 @@ import { TrendChart } from '@/components/charts/TrendChart';
 import { PeriodComparisonChart } from '@/components/charts/PeriodComparisonChart';
 import { BubbleScatterChart } from '@/components/charts/BubbleScatterChart';
 import { WaterfallChart } from '@/components/charts/WaterfallChart';
-import { AIDiagnosisBox } from '@/components/ui/AIDiagnosisBox';
 import { ChannelChatAgent } from '@/components/ui/ChannelChatAgent';
 import { HierarchyTable } from '@/components/tables/HierarchyTable';
 import { fmt } from '@/lib/calculations';
@@ -164,15 +163,8 @@ function ChannelDetailPage() {
   const searchParams = useSearchParams();
   const media = searchParams.get('media') ?? '';
   const { selectedRange, compareRange } = useDashboard();
-  const [allChannels, setAllChannels] = useState<string[]>([]);
   const [bubbleTab, setBubbleTab] = useState<'campaign' | 'group' | 'ad'>('campaign');
   const [waterfallHierTab, setWaterfallHierTab] = useState<'campaign' | 'group' | 'ad'>('campaign');
-
-  // 전체 채널 목록 (AI 진단용) — selectedRange 그대로
-  useEffect(() => {
-    const params = new URLSearchParams({ selStart: selectedRange.start, selEnd: selectedRange.end, cmpStart: compareRange.start, cmpEnd: compareRange.end });
-    fetch(`/api/channels?${params}`).then(r => r.json()).then(d => setAllChannels(d.channels ?? [])).catch(() => {});
-  }, [selectedRange, compareRange]);
 
   // ── 단일일이면 7일 확장 (Trend / Periodicity / Daily 전용) ────────────────
   const isSingle = selectedRange.start === selectedRange.end;
@@ -261,13 +253,10 @@ function ChannelDetailPage() {
         />
       </section>
 
-      {/* 2. AI Diagnosis */}
-      <AIDiagnosisBox media={media} latestDate={selData?.latestDate ?? null} allChannels={allChannels} />
-
-      {/* 3. Channel AI Agent */}
+      {/* 2. Channel AI Agent */}
       <ChannelChatAgent media={media} />
 
-      {/* 4. Performance Trend — trendStart~trendEnd + 비교기간 */}
+      {/* 3. Performance Trend — trendStart~trendEnd + 비교기간 */}
       <TrendChart
         title={ST('📈 Performance Trend', trendStart, trendEnd, trendCmpStart, trendCmpEnd)}
         data={trendData?.trend ?? []}

@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { getBQClient } from '@/lib/bigquery';
-import { IS_PORTFOLIO, PORTFOLIO_CHANNELS, buildReverseChannelMap } from '@/lib/portfolio/transform';
+import { IS_PORTFOLIO, PORTFOLIO_CHANNELS, buildReverseChannelMap, maskCampaign, maskGroup, maskAd, maskKeyword } from '@/lib/portfolio/transform';
 
 export const dynamic     = 'force-dynamic';
 export const maxDuration = 120;
@@ -102,6 +102,22 @@ function prevPeriod(start: string, end: string) {
 const fmtRows = (rows: any[]) =>
   rows.length === 0 ? '데이터 없음' : JSON.stringify(rows.slice(0, 30), null, 2);
 
+// ── 포트폴리오 행 마스킹 ──────────────────────────────────────────────────────
+// campaign/group/ad/keyword 컬럼을 Claude에 넘기기 전에 해싱 처리
+function maskRows(rows: any[]): any[] {
+  if (!IS_PORTFOLIO) return rows;
+  return rows.map(r => {
+    const out = { ...r };
+    if (out.campaign  != null) out.campaign   = maskCampaign(out.campaign);
+    if (out.camp      != null) out.camp        = maskCampaign(out.camp);
+    if (out.campaign_kr != null) out.campaign_kr = maskCampaign(out.campaign_kr);
+    if (out.group     != null) out.group       = maskGroup(out.group);
+    if (out.ad        != null) out.ad          = maskAd(out.ad);
+    if (out.keyword   != null) out.keyword     = maskKeyword(out.keyword);
+    return out;
+  });
+}
+
 // ── 질문 유형 판단 ────────────────────────────────────────────────────────────
 function detectQueryType(question: string): 'lookup' | 'analysis' {
   if (/알려줘|보여줘|뭐야|뭐예요|목록|리스트|몇\s?개|어디야|얼마야|top\s?\d|순위|랭킹|키워드.*줘|줘.*키워드|캠페인.*줘|소재.*줘|off.*키워드|키워드.*off|꺼야\s?할|끄면|pause|일시정지.*목록/i.test(question)) {
@@ -189,7 +205,7 @@ ${historyContext}
 
   let rows: any[];
   try {
-    rows = await runBQ(sql);
+    rows = maskRows(await runBQ(sql));
   } catch (bqErr: any) {
     throw new Error(`데이터 조회 오류: ${bqErr.message}`);
   }
@@ -220,7 +236,7 @@ ${cfg.isSA ? `[SA 채널 테이블]
     const retrySql = retrySqlRaw.replace(/```sql|```/g, '').trim();
     if (retrySql.toUpperCase().startsWith('SELECT') || retrySql.toUpperCase().startsWith('WITH')) {
       try {
-        const retryRows = await runBQ(retrySql);
+        const retryRows = maskRows(await runBQ(retrySql));
         if (retryRows.length > 0) rows = retryRows;
       } catch {}
     }
@@ -306,7 +322,7 @@ async function* runAnalysis(params: {
       CASE WHEN imp=0 THEN NULL ELSE ROUND(click/imp*100,2) END as ctr
     FROM base ORDER BY date`;
 
-  const s1Rows = await runBQ(s1SQL);
+  const s1Rows = maskRows(await runBQ(s1SQL));
   const s1Raw  = await callClaude(system, [
     ...ctx,
     {
@@ -355,7 +371,7 @@ async function* runAnalysis(params: {
            ELSE ROUND((ROUND(a.cost/a.app,0)-ROUND(IFNULL(p.cost,0)/IFNULL(p.app,1),0))/NULLIF(ROUND(IFNULL(p.cost,0)/IFNULL(p.app,1),0),0)*100,1)
       END ${intent === 'improve' ? 'ASC' : 'DESC'} NULLS LAST`;
 
-  const s2Rows = await runBQ(s2SQL);
+  const s2Rows = maskRows(await runBQ(s2SQL));
   const s2Directive =
     intent === 'improve' ? '효율이 가장 크게 개선된 캠페인을 특정하고 개선 이유를 분석하세요.'
     : intent === 'worsen' ? '효율이 가장 크게 악화된 캠페인을 특정하고 악화 원인을 분석하세요.'
@@ -404,7 +420,7 @@ async function* runAnalysis(params: {
       CASE WHEN click=0 THEN NULL ELSE ROUND(app/click*100,2) END as cvr
     FROM base ORDER BY ${s3Order} NULLS LAST`;
 
-  const s3Rows     = await runBQ(s3SQL);
+  const s3Rows = maskRows(await runBQ(s3SQL));
   const s3Directive =
     intent === 'improve' ? '가장 효율이 좋은 그룹과 개선 이유를 분석하세요.'
     : intent === 'worsen' ? '가장 효율이 나쁜 그룹과 악화 원인을 분석하세요.'
@@ -455,7 +471,8 @@ async function* runAnalysis(params: {
       WHERE cost > 0
       ORDER BY effective_cpa DESC LIMIT 20`;
 
-    const [rowsA, rowsB] = await Promise.all([runBQ(kwA), runBQ(kwB)]);
+    const [rawA, rawB] = await Promise.all([runBQ(kwA), runBQ(kwB)]);
+    const [rowsA, rowsB] = [maskRows(rawA), maskRows(rawB)];
     const s4Directive =
       intent === 'improve' ? '전환 성과가 좋은 키워드와 개선 요인을 분석하세요.'
       : '비효율 키워드와 문제 원인을 분석하세요.';
@@ -504,7 +521,7 @@ JSON으로만:
         CASE WHEN imp=0 THEN NULL ELSE ROUND(click/imp*100,2) END as ctr
       FROM base ORDER BY ${s4Order} NULLS LAST LIMIT 50`;
 
-    const s4Rows = await runBQ(s4SQL);
+    const s4Rows = maskRows(await runBQ(s4SQL));
     if (s4Rows.length > 0) {
       const s4Directive =
         intent === 'improve' ? '성과가 좋은 소재와 효율 개선 요인을 분석하세요.'
